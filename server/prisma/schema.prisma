@@ -1,0 +1,45 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  createdAt DateTime @default(now())
+}
+
+model PlaceCache {
+  placeId          String   @id
+  name             String
+  address          String?
+  lat              Float
+  lng              Float
+  rating           Float?
+  userRatingsTotal Int?
+  priceLevel       Int?
+  types            String[]
+  photoRef         String?
+  phone            String?
+  website          String?
+  openingHoursJson Json?
+  rawJson          Json?
+  updatedAt        DateTime @updatedAt
+  createdAt        DateTime @default(now())
+}
+
+model PlaceSearchCache {
+  id           String   @id @default(cuid())
+  queryKey     String   @unique
+  centerLat    Float
+  centerLng    Float
+  radiusMeters Int
+  keyword      String
+  placeIdsJson Json
+  createdAt    DateTime @default(now())
+}
+
