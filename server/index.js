@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const prisma = require('./db');
+const google = require('./google');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -30,6 +31,21 @@ app.post('/api/users/login', async (req, res) => {
   }
   
   res.json({ user: { id: user.id, username: user.username } });
+});
+
+app.get('/api/places/autocomplete', async (req, res) => {
+  const { input } = req.query;
+  if (!input) {
+    return res.json({ predictions: [] });
+  }
+  
+  const predictions = await google.placeAutocomplete(input);
+  res.json({
+    predictions: predictions.map(p => ({
+      description: p.description,
+      placeId: p.place_id,
+    })),
+  });
 });
 
 app.listen(PORT, () => {
