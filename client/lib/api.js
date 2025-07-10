@@ -9,3 +9,7 @@ export async function login(username) {
   return res.json();
 }
 
+export async function autocomplete(input) {
+  const res = await fetch(`${API_URL}/api/places/autocomplete?input=${encodeURIComponent(input)}`);
+  return res.json();
+}
