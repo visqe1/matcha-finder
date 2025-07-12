@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import { login, autocomplete } from '../lib/api';
+import { login, autocomplete, getPlaceDetails } from '../lib/api';
 
 export default function Home() {
   const [user, setUser] = useState(null);
   const [username, setUsername] = useState('');
   const [locationQuery, setLocationQuery] = useState('');
   const [suggestions, setSuggestions] = useState([]);
-  const [selectedPlace, setSelectedPlace] = useState(null);
+  const [center, setCenter] = useState(null);
 
   useEffect(() => {
     const stored = localStorage.getItem('user');
@@ -40,10 +40,18 @@ export default function Home() {
     setSuggestions(data.predictions || []);
   };
 
-  const selectSuggestion = (suggestion) => {
-    setSelectedPlace(suggestion);
+  const selectSuggestion = async (suggestion) => {
     setLocationQuery(suggestion.description);
     setSuggestions([]);
+    
+    const data = await getPlaceDetails(suggestion.placeId);
+    if (data.place) {
+      setCenter({
+        lat: data.place.lat,
+        lng: data.place.lng,
+        name: data.place.name,
+      });
+    }
   };
 
   return (
@@ -94,8 +102,10 @@ export default function Home() {
             </ul>
           )}
         </div>
-        {selectedPlace && (
-          <p className="selected-place">Selected: {selectedPlace.description}</p>
+        {center && (
+          <p className="selected-place">
+            📍 {center.name} ({center.lat.toFixed(4)}, {center.lng.toFixed(4)})
+          </p>
         )}
       </div>
 
