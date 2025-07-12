@@ -48,6 +48,52 @@ app.get('/api/places/autocomplete', async (req, res) => {
   });
 });
 
+app.get('/api/places/details/:placeId', async (req, res) => {
+  const { placeId } = req.params;
+  
+  const details = await google.placeDetails(placeId);
+  if (!details) {
+    return res.status(404).json({ error: 'Place not found' });
+  }
+
+  const place = await prisma.placeCache.upsert({
+    where: { placeId },
+    update: {
+      name: details.name,
+      address: details.formatted_address,
+      lat: details.geometry?.location?.lat,
+      lng: details.geometry?.location?.lng,
+      rating: details.rating,
+      userRatingsTotal: details.user_ratings_total,
+      priceLevel: details.price_level,
+      types: details.types || [],
+      photoRef: details.photos?.[0]?.photo_reference,
+      phone: details.formatted_phone_number,
+      website: details.website,
+      openingHoursJson: details.opening_hours || null,
+      rawJson: details,
+    },
+    create: {
+      placeId,
+      name: details.name,
+      address: details.formatted_address,
+      lat: details.geometry?.location?.lat,
+      lng: details.geometry?.location?.lng,
+      rating: details.rating,
+      userRatingsTotal: details.user_ratings_total,
+      priceLevel: details.price_level,
+      types: details.types || [],
+      photoRef: details.photos?.[0]?.photo_reference,
+      phone: details.formatted_phone_number,
+      website: details.website,
+      openingHoursJson: details.opening_hours || null,
+      rawJson: details,
+    },
+  });
+
+  res.json({ place });
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });

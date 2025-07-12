@@ -11,7 +11,18 @@ async function placeAutocomplete(input) {
   return data.predictions || [];
 }
 
+async function placeDetails(placeId) {
+  const url = new URL('https://maps.googleapis.com/maps/api/place/details/json');
+  url.searchParams.set('place_id', placeId);
+  url.searchParams.set('fields', 'place_id,name,formatted_address,geometry,rating,user_ratings_total,price_level,types,photos,formatted_phone_number,website,opening_hours');
+  url.searchParams.set('key', GOOGLE_API_KEY);
+
+  const res = await fetch(url);
+  const data = await res.json();
+  return data.result || null;
+}
+
 module.exports = {
   placeAutocomplete,
+  placeDetails,
 };
-
