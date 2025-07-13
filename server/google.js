@@ -22,7 +22,21 @@ async function placeDetails(placeId) {
   return data.result || null;
 }
 
+async function nearbySearch(lat, lng, radius) {
+  const url = new URL('https://maps.googleapis.com/maps/api/place/nearbysearch/json');
+  url.searchParams.set('location', `${lat},${lng}`);
+  url.searchParams.set('radius', radius);
+  url.searchParams.set('keyword', 'matcha');
+  url.searchParams.set('type', 'cafe');
+  url.searchParams.set('key', GOOGLE_API_KEY);
+
+  const res = await fetch(url);
+  const data = await res.json();
+  return data.results || [];
+}
+
 module.exports = {
   placeAutocomplete,
   placeDetails,
+  nearbySearch,
 };

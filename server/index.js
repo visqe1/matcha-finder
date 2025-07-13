@@ -94,6 +94,87 @@ app.get('/api/places/details/:placeId', async (req, res) => {
   res.json({ place });
 });
 
+function haversineDistance(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+app.get('/api/search/nearby', async (req, res) => {
+  const { lat, lng, radius = 3000, sort = 'default' } = req.query;
+  
+  if (!lat || !lng) {
+    return res.status(400).json({ error: 'lat and lng required' });
+  }
+
+  const centerLat = parseFloat(lat);
+  const centerLng = parseFloat(lng);
+  const radiusMeters = parseInt(radius);
+
+  const results = await google.nearbySearch(centerLat, centerLng, radiusMeters);
+
+  const places = await Promise.all(
+    results.map(async (r) => {
+      const place = await prisma.placeCache.upsert({
+        where: { placeId: r.place_id },
+        update: {
+          name: r.name,
+          address: r.vicinity,
+          lat: r.geometry?.location?.lat,
+          lng: r.geometry?.location?.lng,
+          rating: r.rating,
+          userRatingsTotal: r.user_ratings_total,
+          priceLevel: r.price_level,
+          types: r.types || [],
+          photoRef: r.photos?.[0]?.photo_reference,
+          rawJson: r,
+        },
+        create: {
+          placeId: r.place_id,
+          name: r.name,
+          address: r.vicinity,
+          lat: r.geometry?.location?.lat,
+          lng: r.geometry?.location?.lng,
+          rating: r.rating,
+          userRatingsTotal: r.user_ratings_total,
+          priceLevel: r.price_level,
+          types: r.types || [],
+          photoRef: r.photos?.[0]?.photo_reference,
+          rawJson: r,
+        },
+      });
+      return {
+        ...place,
+        distance: haversineDistance(centerLat, centerLng, place.lat, place.lng),
+      };
+    })
+  );
+
+  if (sort === 'distance') {
+    places.sort((a, b) => a.distance - b.distance);
+  } else if (sort === 'rating') {
+    places.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+  } else if (sort === 'popularity') {
+    places.sort((a, b) => (b.userRatingsTotal || 0) - (a.userRatingsTotal || 0));
+  } else {
+    places.sort((a, b) => {
+      const scoreA = (a.rating || 0) * Math.log(1 + (a.userRatingsTotal || 0));
+      const scoreB = (b.rating || 0) * Math.log(1 + (b.userRatingsTotal || 0));
+      if (scoreB !== scoreA) return scoreB - scoreA;
+      return a.distance - b.distance;
+    });
+  }
+
+  res.json({
+    places,
+    center: { lat: centerLat, lng: centerLng },
+    meta: { fromCache: false },
+  });
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
