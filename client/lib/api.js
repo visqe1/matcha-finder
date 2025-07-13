@@ -18,3 +18,9 @@ export async function getPlaceDetails(placeId) {
   const res = await fetch(`${API_URL}/api/places/details/${placeId}`);
   return res.json();
 }
+
+export async function searchNearby(lat, lng, radius, sort) {
+  const params = new URLSearchParams({ lat, lng, radius, sort });
+  const res = await fetch(`${API_URL}/api/search/nearby?${params}`);
+  return res.json();
+}

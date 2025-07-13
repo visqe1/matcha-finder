@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { login, autocomplete, getPlaceDetails } from '../lib/api';
+import { login, autocomplete, getPlaceDetails, searchNearby } from '../lib/api';
 
 export default function Home() {
   const [user, setUser] = useState(null);
@@ -7,6 +7,8 @@ export default function Home() {
   const [locationQuery, setLocationQuery] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [center, setCenter] = useState(null);
+  const [radius, setRadius] = useState(3000);
+  const [places, setPlaces] = useState([]);
 
   useEffect(() => {
     const stored = localStorage.getItem('user');
@@ -52,6 +54,33 @@ export default function Home() {
         name: data.place.name,
       });
     }
+  };
+
+  const useMyLocation = () => {
+    if (!navigator.geolocation) {
+      alert('Geolocation not supported');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setCenter({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          name: 'My Location',
+        });
+        setLocationQuery('My Location');
+      },
+      () => alert('Could not get location')
+    );
+  };
+
+  const handleSearch = async () => {
+    if (!center) {
+      alert('Please select a location first');
+      return;
+    }
+    const data = await searchNearby(center.lat, center.lng, radius, 'default');
+    setPlaces(data.places || []);
   };
 
   return (
@@ -107,12 +136,42 @@ export default function Home() {
             📍 {center.name} ({center.lat.toFixed(4)}, {center.lng.toFixed(4)})
           </p>
         )}
+
+        <div className="search-controls">
+          <label>
+            Radius (m):
+            <input
+              type="number"
+              className="input input-small"
+              value={radius}
+              onChange={(e) => setRadius(e.target.value)}
+            />
+          </label>
+        </div>
+
+        <div className="buttons">
+          <button className="btn btn-primary" onClick={useMyLocation}>
+            Use My Location
+          </button>
+          <button className="btn btn-secondary" onClick={handleSearch}>
+            Search
+          </button>
+        </div>
       </div>
 
-      <div className="buttons">
-        <button className="btn btn-primary">Use My Location</button>
-        <button className="btn btn-secondary">Search</button>
-      </div>
+      {places.length > 0 && (
+        <div className="results-section">
+          <h2>Results ({places.length})</h2>
+          <ul className="results-list">
+            {places.map((place) => (
+              <li key={place.placeId} className="result-item">
+                <strong>{place.name}</strong>
+                <span className="result-address">{place.address}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
