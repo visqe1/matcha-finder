@@ -103,6 +103,30 @@ function haversineDistance(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+function sortPlaces(places, sort, centerLat, centerLng) {
+  const withDistance = places.map((p) => ({
+    ...p,
+    distance: haversineDistance(centerLat, centerLng, p.lat, p.lng),
+  }));
+
+  if (sort === 'distance') {
+    withDistance.sort((a, b) => a.distance - b.distance);
+  } else if (sort === 'rating') {
+    withDistance.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+  } else if (sort === 'popularity') {
+    withDistance.sort((a, b) => (b.userRatingsTotal || 0) - (a.userRatingsTotal || 0));
+  } else {
+    withDistance.sort((a, b) => {
+      const scoreA = (a.rating || 0) * Math.log(1 + (a.userRatingsTotal || 0));
+      const scoreB = (b.rating || 0) * Math.log(1 + (b.userRatingsTotal || 0));
+      if (scoreB !== scoreA) return scoreB - scoreA;
+      return a.distance - b.distance;
+    });
+  }
+
+  return withDistance;
+}
+
 app.get('/api/search/nearby', async (req, res) => {
   const { lat, lng, radius = 3000, sort = 'default' } = req.query;
   
@@ -113,6 +137,24 @@ app.get('/api/search/nearby', async (req, res) => {
   const centerLat = parseFloat(lat);
   const centerLng = parseFloat(lng);
   const radiusMeters = parseInt(radius);
+  const keyword = 'matcha';
+
+  const queryKey = `${centerLat.toFixed(3)},${centerLng.toFixed(3)},${radiusMeters},${keyword}`;
+
+  const cached = await prisma.placeSearchCache.findUnique({ where: { queryKey } });
+
+  if (cached) {
+    const placeIds = cached.placeIdsJson;
+    const cachedPlaces = await prisma.placeCache.findMany({
+      where: { placeId: { in: placeIds } },
+    });
+    const places = sortPlaces(cachedPlaces, sort, centerLat, centerLng);
+    return res.json({
+      places,
+      center: { lat: centerLat, lng: centerLng },
+      meta: { fromCache: true },
+    });
+  }
 
   const results = await google.nearbySearch(centerLat, centerLng, radiusMeters);
 
@@ -146,30 +188,26 @@ app.get('/api/search/nearby', async (req, res) => {
           rawJson: r,
         },
       });
-      return {
-        ...place,
-        distance: haversineDistance(centerLat, centerLng, place.lat, place.lng),
-      };
+      return place;
     })
   );
 
-  if (sort === 'distance') {
-    places.sort((a, b) => a.distance - b.distance);
-  } else if (sort === 'rating') {
-    places.sort((a, b) => (b.rating || 0) - (a.rating || 0));
-  } else if (sort === 'popularity') {
-    places.sort((a, b) => (b.userRatingsTotal || 0) - (a.userRatingsTotal || 0));
-  } else {
-    places.sort((a, b) => {
-      const scoreA = (a.rating || 0) * Math.log(1 + (a.userRatingsTotal || 0));
-      const scoreB = (b.rating || 0) * Math.log(1 + (b.userRatingsTotal || 0));
-      if (scoreB !== scoreA) return scoreB - scoreA;
-      return a.distance - b.distance;
-    });
-  }
+  const placeIds = places.map((p) => p.placeId);
+  await prisma.placeSearchCache.create({
+    data: {
+      queryKey,
+      centerLat,
+      centerLng,
+      radiusMeters,
+      keyword,
+      placeIdsJson: placeIds,
+    },
+  });
+
+  const sortedPlaces = sortPlaces(places, sort, centerLat, centerLng);
 
   res.json({
-    places,
+    places: sortedPlaces,
     center: { lat: centerLat, lng: centerLng },
     meta: { fromCache: false },
   });
