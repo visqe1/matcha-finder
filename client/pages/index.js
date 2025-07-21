@@ -8,6 +8,7 @@ export default function Home() {
   const [suggestions, setSuggestions] = useState([]);
   const [center, setCenter] = useState(null);
   const [radius, setRadius] = useState(3000);
+  const [sort, setSort] = useState('default');
   const [places, setPlaces] = useState([]);
 
   useEffect(() => {
@@ -79,8 +80,13 @@ export default function Home() {
       alert('Please select a location first');
       return;
     }
-    const data = await searchNearby(center.lat, center.lng, radius, 'default');
+    const data = await searchNearby(center.lat, center.lng, radius, sort);
     setPlaces(data.places || []);
+  };
+
+  const formatDistance = (meters) => {
+    if (meters < 1000) return `${Math.round(meters)}m`;
+    return `${(meters / 1000).toFixed(1)}km`;
   };
 
   return (
@@ -147,6 +153,19 @@ export default function Home() {
               onChange={(e) => setRadius(e.target.value)}
             />
           </label>
+          <label>
+            Sort by:
+            <select
+              className="input"
+              value={sort}
+              onChange={(e) => setSort(e.target.value)}
+            >
+              <option value="default">Best Match</option>
+              <option value="distance">Distance</option>
+              <option value="rating">Rating</option>
+              <option value="popularity">Popularity</option>
+            </select>
+          </label>
         </div>
 
         <div className="buttons">
@@ -165,8 +184,19 @@ export default function Home() {
           <ul className="results-list">
             {places.map((place) => (
               <li key={place.placeId} className="result-item">
-                <strong>{place.name}</strong>
+                <div className="result-header">
+                  <strong>{place.name}</strong>
+                  <span className="result-distance">{formatDistance(place.distance)}</span>
+                </div>
                 <span className="result-address">{place.address}</span>
+                <div className="result-meta">
+                  {place.rating && (
+                    <span className="result-rating">⭐ {place.rating.toFixed(1)}</span>
+                  )}
+                  {place.userRatingsTotal && (
+                    <span className="result-reviews">({place.userRatingsTotal} reviews)</span>
+                  )}
+                </div>
               </li>
             ))}
           </ul>
