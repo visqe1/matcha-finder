@@ -24,3 +24,17 @@ export async function searchNearby(lat, lng, radius, sort) {
   const res = await fetch(`${API_URL}/api/search/nearby?${params}`);
   return res.json();
 }
+
+export async function toggleFavorite(userId, placeId) {
+  const res = await fetch(`${API_URL}/api/favorites/toggle`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId, placeId }),
+  });
+  return res.json();
+}
+
+export async function getFavorites(userId) {
+  const res = await fetch(`${API_URL}/api/favorites?userId=${userId}`);
+  return res.json();
+}

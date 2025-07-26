@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { login, autocomplete, getPlaceDetails, searchNearby } from '../lib/api';
+import { login, autocomplete, getPlaceDetails, searchNearby, toggleFavorite } from '../lib/api';
+import Nav from '../components/Nav';
 
 export default function Home() {
   const [user, setUser] = useState(null);
@@ -10,6 +11,7 @@ export default function Home() {
   const [radius, setRadius] = useState(3000);
   const [sort, setSort] = useState('default');
   const [places, setPlaces] = useState([]);
+  const [favorites, setFavorites] = useState(new Set());
 
   useEffect(() => {
     const stored = localStorage.getItem('user');
@@ -31,6 +33,7 @@ export default function Home() {
   const handleLogout = () => {
     localStorage.removeItem('user');
     setUser(null);
+    setFavorites(new Set());
   };
 
   const handleLocationInput = async (value) => {
@@ -84,6 +87,23 @@ export default function Home() {
     setPlaces(data.places || []);
   };
 
+  const handleFavorite = async (placeId) => {
+    if (!user) {
+      alert('Please login to favorite places');
+      return;
+    }
+    const data = await toggleFavorite(user.id, placeId);
+    setFavorites((prev) => {
+      const next = new Set(prev);
+      if (data.isFavorited) {
+        next.add(placeId);
+      } else {
+        next.delete(placeId);
+      }
+      return next;
+    });
+  };
+
   const formatDistance = (meters) => {
     if (meters < 1000) return `${Math.round(meters)}m`;
     return `${(meters / 1000).toFixed(1)}km`;
@@ -91,6 +111,7 @@ export default function Home() {
 
   return (
     <div className="container">
+      <Nav />
       <h1 className="title">🍵 Matcha Finder</h1>
       <p className="tagline">Discover local matcha cafés + drinks</p>
 
@@ -186,7 +207,15 @@ export default function Home() {
               <li key={place.placeId} className="result-item">
                 <div className="result-header">
                   <strong>{place.name}</strong>
-                  <span className="result-distance">{formatDistance(place.distance)}</span>
+                  <div className="result-actions">
+                    <span className="result-distance">{formatDistance(place.distance)}</span>
+                    <button
+                      className={`btn-heart ${favorites.has(place.placeId) ? 'active' : ''}`}
+                      onClick={() => handleFavorite(place.placeId)}
+                    >
+                      {favorites.has(place.placeId) ? '❤️' : '🤍'}
+                    </button>
+                  </div>
                 </div>
                 <span className="result-address">{place.address}</span>
                 <div className="result-meta">
