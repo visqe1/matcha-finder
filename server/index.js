@@ -213,6 +213,44 @@ app.get('/api/search/nearby', async (req, res) => {
   });
 });
 
+app.post('/api/favorites/toggle', async (req, res) => {
+  const { userId, placeId } = req.body;
+  if (!userId || !placeId) {
+    return res.status(400).json({ error: 'userId and placeId required' });
+  }
+
+  const existing = await prisma.favorite.findUnique({
+    where: { userId_placeId: { userId, placeId } },
+  });
+
+  if (existing) {
+    await prisma.favorite.delete({ where: { id: existing.id } });
+    return res.json({ isFavorited: false });
+  }
+
+  await prisma.favorite.create({ data: { userId, placeId } });
+  res.json({ isFavorited: true });
+});
+
+app.get('/api/favorites', async (req, res) => {
+  const { userId } = req.query;
+  if (!userId) {
+    return res.status(400).json({ error: 'userId required' });
+  }
+
+  const favorites = await prisma.favorite.findMany({
+    where: { userId },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  const placeIds = favorites.map((f) => f.placeId);
+  const places = await prisma.placeCache.findMany({
+    where: { placeId: { in: placeIds } },
+  });
+
+  res.json({ places });
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
