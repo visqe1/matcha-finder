@@ -48,15 +48,11 @@ app.get('/api/places/autocomplete', async (req, res) => {
   });
 });
 
-app.get('/api/places/details/:placeId', async (req, res) => {
-  const { placeId } = req.params;
-  
+async function fetchAndCachePlaceDetails(placeId) {
   const details = await google.placeDetails(placeId);
-  if (!details) {
-    return res.status(404).json({ error: 'Place not found' });
-  }
+  if (!details) return null;
 
-  const place = await prisma.placeCache.upsert({
+  return prisma.placeCache.upsert({
     where: { placeId },
     update: {
       name: details.name,
@@ -90,6 +86,31 @@ app.get('/api/places/details/:placeId', async (req, res) => {
       rawJson: details,
     },
   });
+}
+
+app.get('/api/places/details/:placeId', async (req, res) => {
+  const { placeId } = req.params;
+  
+  const place = await fetchAndCachePlaceDetails(placeId);
+  if (!place) {
+    return res.status(404).json({ error: 'Place not found' });
+  }
+
+  res.json({ place });
+});
+
+app.get('/api/places/:placeId', async (req, res) => {
+  const { placeId } = req.params;
+
+  let place = await prisma.placeCache.findUnique({ where: { placeId } });
+
+  if (!place) {
+    place = await fetchAndCachePlaceDetails(placeId);
+  }
+
+  if (!place) {
+    return res.status(404).json({ error: 'Place not found' });
+  }
 
   res.json({ place });
 });
