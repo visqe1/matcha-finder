@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { login, autocomplete, getPlaceDetails, searchNearby, toggleFavorite } from '../lib/api';
 import Nav from '../components/Nav';
 
@@ -206,7 +207,9 @@ export default function Home() {
             {places.map((place) => (
               <li key={place.placeId} className="result-item">
                 <div className="result-header">
-                  <strong>{place.name}</strong>
+                  <Link href={`/place/${place.placeId}`} className="result-name">
+                    {place.name}
+                  </Link>
                   <div className="result-actions">
                     <span className="result-distance">{formatDistance(place.distance)}</span>
                     <button

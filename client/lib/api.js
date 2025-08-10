@@ -38,3 +38,8 @@ export async function getFavorites(userId) {
   const res = await fetch(`${API_URL}/api/favorites?userId=${userId}`);
   return res.json();
 }
+
+export async function getPlace(placeId) {
+  const res = await fetch(`${API_URL}/api/places/${placeId}`);
+  return res.json();
+}

@@ -248,3 +248,79 @@ body {
   transform: scale(1.1);
 }
 
+.result-name {
+  color: #2d5a27;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.result-name:hover {
+  text-decoration: underline;
+}
+
+.place-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.btn-heart-lg {
+  background: none;
+  border: none;
+  font-size: 2rem;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.btn-heart-lg:hover {
+  transform: scale(1.1);
+}
+
+.place-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.place-address {
+  margin: 0;
+  color: #555;
+}
+
+.place-rating {
+  margin: 0;
+  color: #d4a017;
+}
+
+.place-contact {
+  margin: 0;
+}
+
+.place-contact a {
+  color: #4a7c59;
+}
+
+.place-hours {
+  margin-top: 1rem;
+}
+
+.place-hours h3 {
+  margin: 0 0 0.5rem 0;
+  color: #2d5a27;
+  font-size: 1rem;
+}
+
+.place-hours ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.place-hours li {
+  padding: 0.25rem 0;
+  color: #555;
+  font-size: 0.9rem;
+}
+
