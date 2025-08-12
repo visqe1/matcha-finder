@@ -43,3 +43,40 @@ export async function getPlace(placeId) {
   const res = await fetch(`${API_URL}/api/places/${placeId}`);
   return res.json();
 }
+
+export async function createTag(userId, name) {
+  const res = await fetch(`${API_URL}/api/tags/create`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId, name }),
+  });
+  return res.json();
+}
+
+export async function getTags(userId) {
+  const res = await fetch(`${API_URL}/api/tags?userId=${userId}`);
+  return res.json();
+}
+
+export async function attachTag(tagId, placeId) {
+  const res = await fetch(`${API_URL}/api/tags/attach`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tagId, placeId }),
+  });
+  return res.json();
+}
+
+export async function detachTag(tagId, placeId) {
+  const res = await fetch(`${API_URL}/api/tags/detach`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tagId, placeId }),
+  });
+  return res.json();
+}
+
+export async function getTagsForPlace(placeId, userId) {
+  const res = await fetch(`${API_URL}/api/tags/for-place?placeId=${placeId}&userId=${userId}`);
+  return res.json();
+}

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { login, autocomplete, getPlaceDetails, searchNearby, toggleFavorite } from '../lib/api';
+import { login, autocomplete, getPlaceDetails, searchNearby, toggleFavorite, getTags } from '../lib/api';
 import Nav from '../components/Nav';
 
 export default function Home() {
@@ -13,13 +13,22 @@ export default function Home() {
   const [sort, setSort] = useState('default');
   const [places, setPlaces] = useState([]);
   const [favorites, setFavorites] = useState(new Set());
+  const [tags, setTags] = useState([]);
+  const [selectedTags, setSelectedTags] = useState(new Set());
 
   useEffect(() => {
     const stored = localStorage.getItem('user');
     if (stored) {
-      setUser(JSON.parse(stored));
+      const u = JSON.parse(stored);
+      setUser(u);
+      loadTags(u.id);
     }
   }, []);
+
+  const loadTags = async (userId) => {
+    const data = await getTags(userId);
+    setTags(data.tags || []);
+  };
 
   const handleLogin = async () => {
     if (!username.trim()) return;
@@ -28,6 +37,7 @@ export default function Home() {
       localStorage.setItem('user', JSON.stringify(data.user));
       setUser(data.user);
       setUsername('');
+      loadTags(data.user.id);
     }
   };
 
@@ -35,6 +45,8 @@ export default function Home() {
     localStorage.removeItem('user');
     setUser(null);
     setFavorites(new Set());
+    setTags([]);
+    setSelectedTags(new Set());
   };
 
   const handleLocationInput = async (value) => {
@@ -100,6 +112,18 @@ export default function Home() {
         next.add(placeId);
       } else {
         next.delete(placeId);
+      }
+      return next;
+    });
+  };
+
+  const toggleTagFilter = (tagId) => {
+    setSelectedTags((prev) => {
+      const next = new Set(prev);
+      if (next.has(tagId)) {
+        next.delete(tagId);
+      } else {
+        next.add(tagId);
       }
       return next;
     });
@@ -189,6 +213,23 @@ export default function Home() {
             </select>
           </label>
         </div>
+
+        {tags.length > 0 && (
+          <div className="tag-filters">
+            <span>Filter by tag:</span>
+            <div className="tag-pills">
+              {tags.map((tag) => (
+                <button
+                  key={tag.id}
+                  className={`tag-pill ${selectedTags.has(tag.id) ? 'active' : ''}`}
+                  onClick={() => toggleTagFilter(tag.id)}
+                >
+                  {tag.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="buttons">
           <button className="btn btn-primary" onClick={useMyLocation}>
