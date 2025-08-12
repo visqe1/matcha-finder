@@ -52,3 +52,21 @@ model Favorite {
   @@unique([userId, placeId])
 }
 
+model Tag {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, name])
+}
+
+model PlaceTag {
+  id        String   @id @default(cuid())
+  tagId     String
+  placeId   String
+  createdAt DateTime @default(now())
+
+  @@unique([tagId, placeId])
+}
+
