@@ -70,3 +70,20 @@ model PlaceTag {
   @@unique([tagId, placeId])
 }
 
+model CafeList {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  shareId   String   @unique
+  createdAt DateTime @default(now())
+}
+
+model CafeListItem {
+  id        String   @id @default(cuid())
+  listId    String
+  placeId   String
+  createdAt DateTime @default(now())
+
+  @@unique([listId, placeId])
+}
+
