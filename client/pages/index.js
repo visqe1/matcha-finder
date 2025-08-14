@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { login, autocomplete, getPlaceDetails, searchNearby, toggleFavorite, getTags } from '../lib/api';
+import { searchNearby, toggleFavorite, getTags } from '../lib/api';
+import { useAuth } from '../lib/useAuth';
 import Nav from '../components/Nav';
+import LoginForm from '../components/LoginForm';
+import LocationSearch from '../components/LocationSearch';
+import PlaceCard from '../components/PlaceCard';
 
 export default function Home() {
-  const [user, setUser] = useState(null);
-  const [username, setUsername] = useState('');
-  const [locationQuery, setLocationQuery] = useState('');
-  const [suggestions, setSuggestions] = useState([]);
+  const { user, saveUser, clearUser } = useAuth();
   const [center, setCenter] = useState(null);
   const [radius, setRadius] = useState(3000);
   const [sort, setSort] = useState('default');
@@ -17,78 +17,25 @@ export default function Home() {
   const [selectedTags, setSelectedTags] = useState(new Set());
 
   useEffect(() => {
-    const stored = localStorage.getItem('user');
-    if (stored) {
-      const u = JSON.parse(stored);
-      setUser(u);
-      loadTags(u.id);
+    if (user) {
+      loadTags(user.id);
     }
-  }, []);
+  }, [user]);
 
   const loadTags = async (userId) => {
     const data = await getTags(userId);
     setTags(data.tags || []);
   };
 
-  const handleLogin = async () => {
-    if (!username.trim()) return;
-    const data = await login(username.trim());
-    if (data.user) {
-      localStorage.setItem('user', JSON.stringify(data.user));
-      setUser(data.user);
-      setUsername('');
-      loadTags(data.user.id);
-    }
+  const handleLogin = (userData) => {
+    saveUser(userData);
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('user');
-    setUser(null);
+    clearUser();
     setFavorites(new Set());
     setTags([]);
     setSelectedTags(new Set());
-  };
-
-  const handleLocationInput = async (value) => {
-    setLocationQuery(value);
-    if (value.length < 2) {
-      setSuggestions([]);
-      return;
-    }
-    const data = await autocomplete(value);
-    setSuggestions(data.predictions || []);
-  };
-
-  const selectSuggestion = async (suggestion) => {
-    setLocationQuery(suggestion.description);
-    setSuggestions([]);
-    
-    const data = await getPlaceDetails(suggestion.placeId);
-    if (data.place) {
-      setCenter({
-        lat: data.place.lat,
-        lng: data.place.lng,
-        name: data.place.name,
-      });
-    }
-  };
-
-  const useMyLocation = () => {
-    if (!navigator.geolocation) {
-      alert('Geolocation not supported');
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setCenter({
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          name: 'My Location',
-        });
-        setLocationQuery('My Location');
-      },
-      () => alert('Could not get location')
-    );
   };
 
   const handleSearch = async () => {
@@ -129,11 +76,6 @@ export default function Home() {
     });
   };
 
-  const formatDistance = (meters) => {
-    if (meters < 1000) return `${Math.round(meters)}m`;
-    return `${(meters / 1000).toFixed(1)}km`;
-  };
-
   return (
     <div className="container">
       <Nav />
@@ -148,41 +90,13 @@ export default function Home() {
           </button>
         </div>
       ) : (
-        <div className="login-section">
-          <input
-            type="text"
-            className="input"
-            placeholder="Enter username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-          />
-          <button className="btn btn-primary" onClick={handleLogin}>
-            Login
-          </button>
-        </div>
+        <LoginForm onLogin={handleLogin} />
       )}
 
       <div className="search-section">
         <h2>Find Matcha Near</h2>
-        <div className="autocomplete-wrapper">
-          <input
-            type="text"
-            className="input input-wide"
-            placeholder="Search for a location..."
-            value={locationQuery}
-            onChange={(e) => handleLocationInput(e.target.value)}
-          />
-          {suggestions.length > 0 && (
-            <ul className="suggestions">
-              {suggestions.map((s) => (
-                <li key={s.placeId} onClick={() => selectSuggestion(s)}>
-                  {s.description}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        <LocationSearch onLocationSelect={setCenter} />
+        
         {center && (
           <p className="selected-place">
             📍 {center.name} ({center.lat.toFixed(4)}, {center.lng.toFixed(4)})
@@ -232,9 +146,6 @@ export default function Home() {
         )}
 
         <div className="buttons">
-          <button className="btn btn-primary" onClick={useMyLocation}>
-            Use My Location
-          </button>
           <button className="btn btn-secondary" onClick={handleSearch}>
             Search
           </button>
@@ -246,31 +157,12 @@ export default function Home() {
           <h2>Results ({places.length})</h2>
           <ul className="results-list">
             {places.map((place) => (
-              <li key={place.placeId} className="result-item">
-                <div className="result-header">
-                  <Link href={`/place/${place.placeId}`} className="result-name">
-                    {place.name}
-                  </Link>
-                  <div className="result-actions">
-                    <span className="result-distance">{formatDistance(place.distance)}</span>
-                    <button
-                      className={`btn-heart ${favorites.has(place.placeId) ? 'active' : ''}`}
-                      onClick={() => handleFavorite(place.placeId)}
-                    >
-                      {favorites.has(place.placeId) ? '❤️' : '🤍'}
-                    </button>
-                  </div>
-                </div>
-                <span className="result-address">{place.address}</span>
-                <div className="result-meta">
-                  {place.rating && (
-                    <span className="result-rating">⭐ {place.rating.toFixed(1)}</span>
-                  )}
-                  {place.userRatingsTotal && (
-                    <span className="result-reviews">({place.userRatingsTotal} reviews)</span>
-                  )}
-                </div>
-              </li>
+              <PlaceCard
+                key={place.placeId}
+                place={place}
+                isFavorited={favorites.has(place.placeId)}
+                onFavorite={handleFavorite}
+              />
             ))}
           </ul>
         </div>

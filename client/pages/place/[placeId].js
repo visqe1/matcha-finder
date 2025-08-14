@@ -1,24 +1,18 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { getPlace, toggleFavorite, getTags, getTagsForPlace, createTag, attachTag, detachTag } from '../../lib/api';
+import { useAuth } from '../../lib/useAuth';
 import Nav from '../../components/Nav';
 
 export default function PlaceDetails() {
   const router = useRouter();
   const { placeId } = router.query;
+  const { user } = useAuth();
   const [place, setPlace] = useState(null);
-  const [user, setUser] = useState(null);
   const [isFavorited, setIsFavorited] = useState(false);
   const [allTags, setAllTags] = useState([]);
   const [placeTags, setPlaceTags] = useState([]);
   const [newTagName, setNewTagName] = useState('');
-
-  useEffect(() => {
-    const stored = localStorage.getItem('user');
-    if (stored) {
-      setUser(JSON.parse(stored));
-    }
-  }, []);
 
   useEffect(() => {
     if (placeId) {
