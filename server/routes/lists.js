@@ -35,7 +35,17 @@ router.get('/', async (req, res) => {
     orderBy: { createdAt: 'desc' },
   });
 
-  res.json({ lists });
+  // Get item counts for each list
+  const listsWithCounts = await Promise.all(
+    lists.map(async (list) => {
+      const itemCount = await prisma.cafeListItem.count({
+        where: { listId: list.id },
+      });
+      return { ...list, itemCount };
+    })
+  );
+
+  res.json({ lists: listsWithCounts });
 });
 
 router.post('/add-item', async (req, res) => {
@@ -80,11 +90,25 @@ router.get('/by-share/:shareId', async (req, res) => {
   });
 
   const placeIds = listItems.map((item) => item.placeId);
-  const items = await prisma.placeCache.findMany({
+  const cachedPlaces = await prisma.placeCache.findMany({
     where: { placeId: { in: placeIds } },
   });
 
-  res.json({ list, items });
+  // Format places for PlaceCard component
+  const places = cachedPlaces.map((p) => ({
+    placeId: p.placeId,
+    name: p.name,
+    address: p.address,
+    rating: p.rating,
+    userRatingsTotal: p.userRatingsTotal,
+  }));
+
+  res.json({
+    list: {
+      ...list,
+      places,
+    },
+  });
 });
 
 module.exports = router;

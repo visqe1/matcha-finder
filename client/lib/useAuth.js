@@ -22,3 +22,4 @@ export function useAuth() {
 
   return { user, saveUser, clearUser };
 }
+

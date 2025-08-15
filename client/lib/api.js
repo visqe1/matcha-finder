@@ -80,3 +80,40 @@ export async function getTagsForPlace(placeId, userId) {
   const res = await fetch(`${API_URL}/api/tags/for-place?placeId=${placeId}&userId=${userId}`);
   return res.json();
 }
+
+export async function createList(userId, title) {
+  const res = await fetch(`${API_URL}/api/lists/create`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId, title }),
+  });
+  return res.json();
+}
+
+export async function getLists(userId) {
+  const res = await fetch(`${API_URL}/api/lists?userId=${userId}`);
+  return res.json();
+}
+
+export async function addToList(listId, placeId) {
+  const res = await fetch(`${API_URL}/api/lists/add-item`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ listId, placeId }),
+  });
+  return res.json();
+}
+
+export async function removeFromList(listId, placeId) {
+  const res = await fetch(`${API_URL}/api/lists/remove-item`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ listId, placeId }),
+  });
+  return res.json();
+}
+
+export async function getListByShareId(shareId) {
+  const res = await fetch(`${API_URL}/api/lists/by-share/${shareId}`);
+  return res.json();
+}

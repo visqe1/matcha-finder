@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { getPlace, toggleFavorite, getTags, getTagsForPlace, createTag, attachTag, detachTag } from '../../lib/api';
+import { getPlace, toggleFavorite, getTags, getTagsForPlace, createTag, attachTag, detachTag, getLists, addToList } from '../../lib/api';
 import { useAuth } from '../../lib/useAuth';
 import Nav from '../../components/Nav';
 
@@ -13,6 +13,8 @@ export default function PlaceDetails() {
   const [allTags, setAllTags] = useState([]);
   const [placeTags, setPlaceTags] = useState([]);
   const [newTagName, setNewTagName] = useState('');
+  const [lists, setLists] = useState([]);
+  const [selectedListId, setSelectedListId] = useState('');
 
   useEffect(() => {
     if (placeId) {
@@ -23,8 +25,14 @@ export default function PlaceDetails() {
   useEffect(() => {
     if (user && placeId) {
       loadTags();
+      loadLists();
     }
   }, [user, placeId]);
+
+  const loadLists = async () => {
+    const data = await getLists(user.id);
+    setLists(data.lists || []);
+  };
 
   const loadPlace = async () => {
     const data = await getPlace(placeId);
@@ -67,6 +75,13 @@ export default function PlaceDetails() {
   const handleDetachTag = async (tagId) => {
     await detachTag(tagId, placeId);
     setPlaceTags((prev) => prev.filter((t) => t.id !== tagId));
+  };
+
+  const handleAddToList = async () => {
+    if (!selectedListId) return;
+    await addToList(selectedListId, placeId);
+    setSelectedListId('');
+    alert('Added to list!');
   };
 
   if (!place) {
@@ -167,6 +182,29 @@ export default function PlaceDetails() {
               />
               <button className="btn btn-secondary" onClick={handleCreateTag}>
                 Create
+              </button>
+            </div>
+          </div>
+        )}
+
+        {user && lists.length > 0 && (
+          <div className="add-to-list-section">
+            <h3>Add to List</h3>
+            <div className="add-to-list-controls">
+              <select
+                className="input"
+                value={selectedListId}
+                onChange={(e) => setSelectedListId(e.target.value)}
+              >
+                <option value="">Select a list...</option>
+                {lists.map((list) => (
+                  <option key={list.id} value={list.id}>
+                    {list.title}
+                  </option>
+                ))}
+              </select>
+              <button className="btn btn-primary" onClick={handleAddToList}>
+                Add
               </button>
             </div>
           </div>
