@@ -83,7 +83,15 @@ router.get('/:placeId', async (req, res) => {
     return res.status(404).json({ error: 'Place not found' });
   }
 
-  res.json({ place });
+  // Add photo URL if we have a photo reference
+  const placeWithPhoto = {
+    ...place,
+    photoUrl: place.photoRef
+      ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${place.photoRef}&key=${process.env.GOOGLE_MAPS_API_KEY}`
+      : null,
+  };
+
+  res.json({ place: placeWithPhoto });
 });
 
 module.exports = router;

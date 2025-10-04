@@ -1,172 +1,243 @@
 import { useState, useEffect } from 'react';
-import { searchNearby, toggleFavorite, getTags } from '../lib/api';
+import { searchNearby, autocomplete, getPlaceDetails } from '../lib/api';
 import { useAuth } from '../lib/useAuth';
 import Nav from '../components/Nav';
-import LoginForm from '../components/LoginForm';
-import LocationSearch from '../components/LocationSearch';
 import PlaceCard from '../components/PlaceCard';
 
+const MILES_TO_METERS = 1609.34;
+const RADIUS_OPTIONS = [1, 2, 5, 10, 25]; // miles
+
 export default function Home() {
-  const { user, saveUser, clearUser } = useAuth();
-  const [center, setCenter] = useState(null);
-  const [radius, setRadius] = useState(3000);
-  const [sort, setSort] = useState('default');
+  const { user } = useAuth();
+  const [location, setLocation] = useState(null);
+  const [locationName, setLocationName] = useState('');
   const [places, setPlaces] = useState([]);
-  const [favorites, setFavorites] = useState(new Set());
-  const [tags, setTags] = useState([]);
-  const [selectedTags, setSelectedTags] = useState(new Set());
+  const [loading, setLoading] = useState(true);
+  const [sort, setSort] = useState('default');
+  const [radiusMiles, setRadiusMiles] = useState(5);
+  const [showLocationSearch, setShowLocationSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
 
+  // Load saved location from localStorage on mount
   useEffect(() => {
-    if (user) {
-      loadTags(user.id);
+    const savedLocation = localStorage.getItem('matcha_location');
+    const savedLocationName = localStorage.getItem('matcha_location_name');
+    const savedRadius = localStorage.getItem('matcha_radius');
+
+    if (savedRadius) {
+      setRadiusMiles(Number(savedRadius));
     }
-  }, [user]);
 
-  const loadTags = async (userId) => {
-    const data = await getTags(userId);
-    setTags(data.tags || []);
-  };
-
-  const handleLogin = (userData) => {
-    saveUser(userData);
-  };
-
-  const handleLogout = () => {
-    clearUser();
-    setFavorites(new Set());
-    setTags([]);
-    setSelectedTags(new Set());
-  };
-
-  const handleSearch = async () => {
-    if (!center) {
-      alert('Please select a location first');
-      return;
+    if (savedLocation && savedLocationName) {
+      const loc = JSON.parse(savedLocation);
+      setLocation(loc);
+      setLocationName(savedLocationName);
+      loadPlaces(loc.lat, loc.lng, 'default', savedRadius ? Number(savedRadius) : 5);
+    } else {
+      // No saved location - try geolocation
+      tryGeolocation();
     }
-    const data = await searchNearby(center.lat, center.lng, radius, sort);
+  }, []);
+
+  const tryGeolocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          saveLocation(loc, 'Your Location');
+          loadPlaces(loc.lat, loc.lng, sort, radiusMiles);
+        },
+        () => {
+          setLoading(false);
+          setShowLocationSearch(true);
+        }
+      );
+    } else {
+      setLoading(false);
+      setShowLocationSearch(true);
+    }
+  };
+
+  const saveLocation = (loc, name) => {
+    setLocation(loc);
+    setLocationName(name);
+    localStorage.setItem('matcha_location', JSON.stringify(loc));
+    localStorage.setItem('matcha_location_name', name);
+  };
+
+  const loadPlaces = async (lat, lng, sortBy = 'default', radius = radiusMiles) => {
+    setLoading(true);
+    const radiusMeters = Math.round(radius * MILES_TO_METERS);
+    const data = await searchNearby(lat, lng, radiusMeters, sortBy);
     setPlaces(data.places || []);
+    setLoading(false);
   };
 
-  const handleFavorite = async (placeId) => {
-    if (!user) {
-      alert('Please login to favorite places');
+  const handleSortChange = (newSort) => {
+    setSort(newSort);
+    if (location) {
+      loadPlaces(location.lat, location.lng, newSort, radiusMiles);
+    }
+  };
+
+  const handleRadiusChange = (newRadius) => {
+    setRadiusMiles(newRadius);
+    localStorage.setItem('matcha_radius', String(newRadius));
+    if (location) {
+      loadPlaces(location.lat, location.lng, sort, newRadius);
+    }
+  };
+
+  const handleSearchInput = async (value) => {
+    setSearchQuery(value);
+    if (value.length < 2) {
+      setSuggestions([]);
       return;
     }
-    const data = await toggleFavorite(user.id, placeId);
-    setFavorites((prev) => {
-      const next = new Set(prev);
-      if (data.isFavorited) {
-        next.add(placeId);
-      } else {
-        next.delete(placeId);
-      }
-      return next;
-    });
+    const data = await autocomplete(value);
+    setSuggestions(data.predictions || []);
   };
 
-  const toggleTagFilter = (tagId) => {
-    setSelectedTags((prev) => {
-      const next = new Set(prev);
-      if (next.has(tagId)) {
-        next.delete(tagId);
-      } else {
-        next.add(tagId);
-      }
-      return next;
-    });
+  const selectLocation = async (suggestion) => {
+    setSearchQuery('');
+    setSuggestions([]);
+    setShowLocationSearch(false);
+
+    const data = await getPlaceDetails(suggestion.placeId);
+    if (data.place) {
+      const loc = { lat: data.place.lat, lng: data.place.lng };
+      const name = suggestion.description.split(',')[0];
+      saveLocation(loc, name);
+      loadPlaces(loc.lat, loc.lng, sort, radiusMiles);
+    }
+  };
+
+  const useMyLocation = () => {
+    if (!navigator.geolocation) {
+      alert('Geolocation not supported');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        saveLocation(loc, 'Your Location');
+        setShowLocationSearch(false);
+        setSearchQuery('');
+        loadPlaces(loc.lat, loc.lng, sort, radiusMiles);
+      },
+      () => alert('Could not get your location')
+    );
   };
 
   return (
-    <div className="container">
+    <div className="page">
       <Nav />
-      <h1 className="title">🍵 Matcha Finder</h1>
-      <p className="tagline">Discover local matcha cafés + drinks</p>
 
-      {user ? (
-        <div className="user-section">
-          <p>Logged in as <strong>{user.username}</strong></p>
-          <button className="btn btn-secondary" onClick={handleLogout}>
-            Logout
-          </button>
+      <header className="hero">
+        <h1 className="hero-title">🍵 Matcha Finder</h1>
+        <p className="hero-subtitle">Discover the best matcha spots near you</p>
+      </header>
+
+      <main className="main-content">
+        <div className="location-bar">
+          <div className="location-display" onClick={() => setShowLocationSearch(true)}>
+            <span className="location-icon">📍</span>
+            <span className="location-text">
+              {locationName || 'Set your location'}
+            </span>
+            <span className="location-change">Change</span>
+          </div>
+
+          {showLocationSearch && (
+            <div className="location-dropdown">
+              <input
+                type="text"
+                className="location-input"
+                placeholder="Enter city, neighborhood, or address..."
+                value={searchQuery}
+                onChange={(e) => handleSearchInput(e.target.value)}
+                autoFocus
+              />
+              <button className="geo-btn" onClick={useMyLocation}>
+                📍 Use my location
+              </button>
+              {suggestions.length > 0 && (
+                <ul className="location-suggestions">
+                  {suggestions.map((s) => (
+                    <li key={s.placeId} onClick={() => selectLocation(s)}>
+                      {s.description}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <button
+                className="close-btn"
+                onClick={() => setShowLocationSearch(false)}
+              >
+                Cancel
+              </button>
+            </div>
+          )}
         </div>
-      ) : (
-        <LoginForm onLogin={handleLogin} />
-      )}
 
-      <div className="search-section">
-        <h2>Find Matcha Near</h2>
-        <LocationSearch onLocationSelect={setCenter} />
-        
-        {center && (
-          <p className="selected-place">
-            📍 {center.name} ({center.lat.toFixed(4)}, {center.lng.toFixed(4)})
-          </p>
-        )}
-
-        <div className="search-controls">
-          <label>
-            Radius (m):
-            <input
-              type="number"
-              className="input input-small"
-              value={radius}
-              onChange={(e) => setRadius(e.target.value)}
-            />
-          </label>
-          <label>
-            Sort by:
-            <select
-              className="input"
-              value={sort}
-              onChange={(e) => setSort(e.target.value)}
-            >
-              <option value="default">Best Match</option>
-              <option value="distance">Distance</option>
-              <option value="rating">Rating</option>
-              <option value="popularity">Popularity</option>
-            </select>
-          </label>
-        </div>
-
-        {tags.length > 0 && (
-          <div className="tag-filters">
-            <span>Filter by tag:</span>
-            <div className="tag-pills">
-              {tags.map((tag) => (
-                <button
-                  key={tag.id}
-                  className={`tag-pill ${selectedTags.has(tag.id) ? 'active' : ''}`}
-                  onClick={() => toggleTagFilter(tag.id)}
-                >
-                  {tag.name}
-                </button>
-              ))}
+        {location && (
+          <div className="controls">
+            <div className="control-group">
+              <label>Within:</label>
+              <select value={radiusMiles} onChange={(e) => handleRadiusChange(Number(e.target.value))}>
+                {RADIUS_OPTIONS.map((r) => (
+                  <option key={r} value={r}>
+                    {r} {r === 1 ? 'mile' : 'miles'}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="control-group">
+              <label>Sort:</label>
+              <select value={sort} onChange={(e) => handleSortChange(e.target.value)}>
+                <option value="default">Best Match</option>
+                <option value="distance">Nearest</option>
+                <option value="rating">Top Rated</option>
+                <option value="popularity">Most Popular</option>
+              </select>
             </div>
           </div>
         )}
 
-        <div className="buttons">
-          <button className="btn btn-secondary" onClick={handleSearch}>
-            Search
-          </button>
-        </div>
-      </div>
+        {loading && (
+          <div className="loading">
+            <div className="spinner"></div>
+            <p>Finding matcha spots...</p>
+          </div>
+        )}
 
-      {places.length > 0 && (
-        <div className="results-section">
-          <h2>Results ({places.length})</h2>
-          <ul className="results-list">
-            {places.map((place) => (
-              <PlaceCard
-                key={place.placeId}
-                place={place}
-                isFavorited={favorites.has(place.placeId)}
-                onFavorite={handleFavorite}
-              />
-            ))}
-          </ul>
-        </div>
-      )}
+        {!loading && !location && (
+          <div className="empty-state">
+            <p className="empty-icon">🗺️</p>
+            <p>Set your location to discover matcha cafés nearby</p>
+          </div>
+        )}
+
+        {!loading && location && places.length === 0 && (
+          <div className="empty-state">
+            <p className="empty-icon">😢</p>
+            <p>No matcha spots found within {radiusMiles} {radiusMiles === 1 ? 'mile' : 'miles'}</p>
+            <p className="empty-hint">Try expanding your search radius</p>
+          </div>
+        )}
+
+        {!loading && places.length > 0 && (
+          <>
+            <p className="results-count">{places.length} spots found</p>
+            <div className="places-grid">
+              {places.map((place) => (
+                <PlaceCard key={place.placeId} place={place} />
+              ))}
+            </div>
+          </>
+        )}
+      </main>
     </div>
   );
 }

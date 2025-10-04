@@ -41,5 +41,18 @@ router.get('/', async (req, res) => {
   res.json({ places });
 });
 
+router.get('/check', async (req, res) => {
+  const { userId, placeId } = req.query;
+  if (!userId || !placeId) {
+    return res.status(400).json({ error: 'userId and placeId required' });
+  }
+
+  const existing = await prisma.favorite.findUnique({
+    where: { userId_placeId: { userId, placeId } },
+  });
+
+  res.json({ isFavorited: !!existing });
+});
+
 module.exports = router;
 

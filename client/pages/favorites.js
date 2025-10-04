@@ -1,59 +1,83 @@
 import { useState, useEffect } from 'react';
-import { getFavorites, toggleFavorite } from '../lib/api';
+import Link from 'next/link';
+import { getFavorites } from '../lib/api';
 import { useAuth } from '../lib/useAuth';
 import Nav from '../components/Nav';
 import PlaceCard from '../components/PlaceCard';
 
-export default function Favorites() {
+export default function FavoritesPage() {
   const { user } = useAuth();
-  const [places, setPlaces] = useState([]);
+  const [favorites, setFavorites] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (user) {
-      loadFavorites(user.id);
+      loadFavorites();
+    } else {
+      setLoading(false);
     }
   }, [user]);
 
-  const loadFavorites = async (userId) => {
-    const data = await getFavorites(userId);
-    setPlaces(data.places || []);
-  };
-
-  const handleUnfavorite = async (placeId) => {
-    await toggleFavorite(user.id, placeId);
-    setPlaces((prev) => prev.filter((p) => p.placeId !== placeId));
+  const loadFavorites = async () => {
+    setLoading(true);
+    const data = await getFavorites(user.id);
+    setFavorites(data.places || []);
+    setLoading(false);
   };
 
   if (!user) {
     return (
-      <div className="container">
+      <div className="page">
         <Nav />
-        <h1 className="title">Favorites</h1>
-        <p>Please login to see your favorites.</p>
+        <main className="main-content centered">
+          <div className="empty-state">
+            <p className="empty-icon">❤️</p>
+            <h2>Your Favorites</h2>
+            <p>Log in to save your favorite matcha spots</p>
+            <Link href="/login" className="cta-btn">
+              Log in
+            </Link>
+          </div>
+        </main>
       </div>
     );
   }
 
   return (
-    <div className="container">
+    <div className="page">
       <Nav />
-      <h1 className="title">❤️ My Favorites</h1>
+      <main className="main-content">
+        <Link href="/" className="back-link">← Back to search</Link>
+        <h1 className="page-title">Your Favorites</h1>
 
-      {places.length === 0 ? (
-        <p>No favorites yet. Search for places and add some!</p>
-      ) : (
-        <ul className="results-list">
-          {places.map((place) => (
-            <PlaceCard
-              key={place.placeId}
-              place={place}
-              isFavorited={true}
-              onFavorite={handleUnfavorite}
-              showDistance={false}
-            />
-          ))}
-        </ul>
-      )}
+        {loading && (
+          <div className="loading">
+            <div className="spinner"></div>
+            <p>Loading...</p>
+          </div>
+        )}
+
+        {!loading && favorites.length === 0 && (
+          <div className="empty-state">
+            <p className="empty-icon">💚</p>
+            <p>No favorites yet</p>
+            <p className="empty-hint">
+              Tap the heart on any café to save it here
+            </p>
+            <Link href="/" className="cta-btn">
+              Find cafés
+            </Link>
+          </div>
+        )}
+
+        {!loading && favorites.length > 0 && (
+          <div className="places-grid">
+            {favorites.map((place) => (
+              <PlaceCard key={place.placeId} place={place} />
+            ))}
+          </div>
+        )}
+      </main>
     </div>
   );
 }

@@ -4,12 +4,13 @@ Discover local matcha cafés and drinks based on distance, rating, and popularit
 
 ## Features
 
-- **Search nearby matcha cafés** using Google Places API
-- **Sort results** by distance, rating, popularity, or best match
-- **Save favorites** for quick access
-- **Create custom tags** to organize places
-- **Build shareable lists** with public URLs
-- **Geolocation support** to find cafés near you
+- **Discover matcha cafés** — Auto-loads nearby spots using your location
+- **Search by location** — Cities, neighborhoods, or addresses
+- **Sort & filter** — By distance, rating, popularity, or best match
+- **Save favorites** — Quick access to places you love
+- **Create shareable lists** — Organize and share collections with friends
+- **Place details** — Photos, hours, ratings, contact info, and more
+- **Real authentication** — Username + password with bcrypt hashing
 
 ## Tech Stack
 
@@ -75,12 +76,13 @@ NEXT_PUBLIC_SERVER_URL=http://localhost:4000
 ## API Endpoints
 
 ### Users
-- `POST /api/users/login` - Login or create user
+- `POST /api/users/register` - Create new account (username + password)
+- `POST /api/users/login` - Login with username + password
 
 ### Places
-- `GET /api/places/autocomplete?input=...` - Location autocomplete
+- `GET /api/places/autocomplete?input=...` - Location autocomplete (cities, neighborhoods)
 - `GET /api/places/details/:placeId` - Get place details (caches to DB)
-- `GET /api/places/:placeId` - Get cached place
+- `GET /api/places/:placeId` - Get cached place with photo URL
 
 ### Search
 - `GET /api/search/nearby?lat=...&lng=...&radius=...&sort=...` - Search matcha cafés
@@ -88,20 +90,14 @@ NEXT_PUBLIC_SERVER_URL=http://localhost:4000
 ### Favorites
 - `POST /api/favorites/toggle` - Toggle favorite
 - `GET /api/favorites?userId=...` - Get user favorites
-
-### Tags
-- `POST /api/tags/create` - Create tag
-- `GET /api/tags?userId=...` - Get user tags
-- `POST /api/tags/attach` - Attach tag to place
-- `POST /api/tags/detach` - Detach tag from place
-- `GET /api/tags/for-place?placeId=...&userId=...` - Get tags for place
+- `GET /api/favorites/check?userId=...&placeId=...` - Check if favorited
 
 ### Lists
 - `POST /api/lists/create` - Create list
-- `GET /api/lists?userId=...` - Get user lists
+- `GET /api/lists?userId=...` - Get user lists with item counts
 - `POST /api/lists/add-item` - Add place to list
 - `POST /api/lists/remove-item` - Remove place from list
-- `GET /api/lists/by-share/:shareId` - Get public list
+- `GET /api/lists/by-share/:shareId` - Get public list with places
 
 ## Google API Setup
 

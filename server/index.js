@@ -7,7 +7,6 @@ const usersRoutes = require('./routes/users');
 const placesRoutes = require('./routes/places');
 const searchRoutes = require('./routes/search');
 const favoritesRoutes = require('./routes/favorites');
-const tagsRoutes = require('./routes/tags');
 const listsRoutes = require('./routes/lists');
 
 const app = express();
@@ -29,7 +28,6 @@ app.use('/api/users', usersRoutes);
 app.use('/api/places', placesRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/favorites', favoritesRoutes);
-app.use('/api/tags', tagsRoutes);
 app.use('/api/lists', listsRoutes);
 
 app.listen(PORT, () => {
