@@ -1,5 +1,6 @@
 const express = require('express');
 const prisma = require('../db');
+const google = require('../google');
 
 const router = express.Router();
 
@@ -101,6 +102,8 @@ router.get('/by-share/:shareId', async (req, res) => {
     address: p.address,
     rating: p.rating,
     userRatingsTotal: p.userRatingsTotal,
+    priceLevel: p.priceLevel,
+    photoUrl: p.photoRef ? google.getPhotoUrl(p.photoRef, 400) : null,
   }));
 
   res.json({

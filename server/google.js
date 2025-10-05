@@ -14,12 +14,17 @@ async function placeAutocomplete(input) {
 async function placeDetails(placeId) {
   const url = new URL('https://maps.googleapis.com/maps/api/place/details/json');
   url.searchParams.set('place_id', placeId);
-  url.searchParams.set('fields', 'place_id,name,formatted_address,geometry,rating,user_ratings_total,price_level,types,photos,formatted_phone_number,website,opening_hours');
+  url.searchParams.set('fields', 'place_id,name,formatted_address,geometry,rating,user_ratings_total,price_level,types,photos,formatted_phone_number,website,opening_hours,reviews,editorial_summary');
   url.searchParams.set('key', GOOGLE_API_KEY);
 
   const res = await fetch(url);
   const data = await res.json();
   return data.result || null;
+}
+
+function getPhotoUrl(photoRef, maxWidth = 800) {
+  if (!photoRef) return null;
+  return `https://maps.googleapis.com/maps/api/place/photo?maxwidth=${maxWidth}&photo_reference=${photoRef}&key=${GOOGLE_API_KEY}`;
 }
 
 async function nearbySearch(lat, lng, radius) {
@@ -35,8 +40,35 @@ async function nearbySearch(lat, lng, radius) {
   return data.results || [];
 }
 
+// Search for cafes by text query (e.g., "matcha cafe in NYC" or "Cha Cha Matcha")
+async function textSearch(query) {
+  const url = new URL('https://maps.googleapis.com/maps/api/place/textsearch/json');
+  url.searchParams.set('query', `${query} matcha`);
+  url.searchParams.set('type', 'cafe');
+  url.searchParams.set('key', GOOGLE_API_KEY);
+
+  const res = await fetch(url);
+  const data = await res.json();
+  return data.results || [];
+}
+
+// Autocomplete for cafe names (establishments)
+async function cafeAutocomplete(input) {
+  const url = new URL('https://maps.googleapis.com/maps/api/place/autocomplete/json');
+  url.searchParams.set('input', `${input} matcha`);
+  url.searchParams.set('types', 'establishment');
+  url.searchParams.set('key', GOOGLE_API_KEY);
+
+  const res = await fetch(url);
+  const data = await res.json();
+  return data.predictions || [];
+}
+
 module.exports = {
   placeAutocomplete,
   placeDetails,
   nearbySearch,
+  getPhotoUrl,
+  textSearch,
+  cafeAutocomplete,
 };

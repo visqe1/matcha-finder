@@ -1,7 +1,15 @@
 const express = require('express');
 const prisma = require('../db');
+const google = require('../google');
 
 const router = express.Router();
+
+function addPhotoUrl(place) {
+  return {
+    ...place,
+    photoUrl: place.photoRef ? google.getPhotoUrl(place.photoRef, 400) : null,
+  };
+}
 
 router.post('/toggle', async (req, res) => {
   const { userId, placeId } = req.body;
@@ -34,10 +42,11 @@ router.get('/', async (req, res) => {
   });
 
   const placeIds = favorites.map((f) => f.placeId);
-  const places = await prisma.placeCache.findMany({
+  const cachedPlaces = await prisma.placeCache.findMany({
     where: { placeId: { in: placeIds } },
   });
 
+  const places = cachedPlaces.map(addPhotoUrl);
   res.json({ places });
 });
 

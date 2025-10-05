@@ -34,6 +34,11 @@ export async function searchNearby(lat, lng, radius, sort) {
   return res.json();
 }
 
+export async function searchCafes(query) {
+  const res = await fetch(`${API_URL}/api/search/cafes?q=${encodeURIComponent(query)}`);
+  return res.json();
+}
+
 export async function toggleFavorite(userId, placeId) {
   const res = await fetch(`${API_URL}/api/favorites/toggle`, {
     method: 'POST',
@@ -92,5 +97,10 @@ export async function removeFromList(listId, placeId) {
 
 export async function getListByShareId(shareId) {
   const res = await fetch(`${API_URL}/api/lists/by-share/${shareId}`);
+  return res.json();
+}
+
+export async function getRecommendations(placeId, limit = 6) {
+  const res = await fetch(`${API_URL}/api/places/${placeId}/recommendations?limit=${limit}`);
   return res.json();
 }

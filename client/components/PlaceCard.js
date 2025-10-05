@@ -4,29 +4,38 @@ export default function PlaceCard({ place }) {
   const formatDistance = (meters) => {
     if (!meters) return null;
     if (meters < 1000) return `${Math.round(meters)}m`;
-    return `${(meters / 1000).toFixed(1)}km`;
+    const miles = meters / 1609.34;
+    return `${miles.toFixed(1)} mi`;
   };
+
+  const priceLevel = place.priceLevel ? '$'.repeat(place.priceLevel) : null;
 
   return (
     <Link href={`/place/${place.placeId}`} className="place-card">
+      <div className="place-card-image">
+        {place.photoUrl ? (
+          <img src={place.photoUrl} alt={place.name} />
+        ) : (
+          <div className="place-card-no-image">🍵</div>
+        )}
+        {place.distance && (
+          <span className="place-card-distance-badge">
+            {formatDistance(place.distance)}
+          </span>
+        )}
+      </div>
       <div className="place-card-content">
         <h3 className="place-card-name">{place.name}</h3>
-        <p className="place-card-address">{place.address}</p>
         <div className="place-card-meta">
           {place.rating && (
             <span className="place-card-rating">
               ⭐ {place.rating.toFixed(1)}
-              {place.userRatingsTotal && (
-                <span className="rating-count">({place.userRatingsTotal})</span>
-              )}
+              <span className="rating-count">({place.userRatingsTotal})</span>
             </span>
           )}
-          {place.distance && (
-            <span className="place-card-distance">
-              {formatDistance(place.distance)}
-            </span>
-          )}
+          {priceLevel && <span className="place-card-price">{priceLevel}</span>}
         </div>
+        <p className="place-card-address">{place.address}</p>
       </div>
     </Link>
   );
