@@ -1,6 +1,9 @@
+import { useState } from 'react';
 import Link from 'next/link';
 
 export default function PlaceCard({ place }) {
+  const [imageError, setImageError] = useState(false);
+  
   const formatDistance = (meters) => {
     if (!meters) return null;
     if (meters < 1000) return `${Math.round(meters)}m`;
@@ -9,12 +12,17 @@ export default function PlaceCard({ place }) {
   };
 
   const priceLevel = place.priceLevel ? '$'.repeat(place.priceLevel) : null;
+  const showImage = place.photoUrl && !imageError;
 
   return (
     <Link href={`/place/${place.placeId}`} className="place-card">
       <div className="place-card-image">
-        {place.photoUrl ? (
-          <img src={place.photoUrl} alt={place.name} />
+        {showImage ? (
+          <img 
+            src={place.photoUrl} 
+            alt={place.name} 
+            onError={() => setImageError(true)}
+          />
         ) : (
           <div className="place-card-no-image">🍵</div>
         )}

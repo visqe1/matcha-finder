@@ -1,9 +1,14 @@
 const GOOGLE_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 
+// Warn if API key is missing
+if (!GOOGLE_API_KEY) {
+  console.error('WARNING: GOOGLE_MAPS_API_KEY is not set! Photos and API calls will fail.');
+}
+
 async function placeAutocomplete(input) {
   const url = new URL('https://maps.googleapis.com/maps/api/place/autocomplete/json');
   url.searchParams.set('input', input);
-  url.searchParams.set('types', '(regions)'); // cities, neighborhoods, postal codes
+  url.searchParams.set('types', 'geocode'); // addresses, neighborhoods, cities, etc.
   url.searchParams.set('key', GOOGLE_API_KEY);
 
   const res = await fetch(url);
@@ -24,6 +29,10 @@ async function placeDetails(placeId) {
 
 function getPhotoUrl(photoRef, maxWidth = 800) {
   if (!photoRef) return null;
+  if (!GOOGLE_API_KEY) {
+    console.error('Cannot generate photo URL: GOOGLE_MAPS_API_KEY is not set');
+    return null;
+  }
   return `https://maps.googleapis.com/maps/api/place/photo?maxwidth=${maxWidth}&photo_reference=${photoRef}&key=${GOOGLE_API_KEY}`;
 }
 

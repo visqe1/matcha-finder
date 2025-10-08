@@ -23,6 +23,7 @@ export default function PlaceDetails() {
   const [recommendations, setRecommendations] = useState([]);
   const [loadingRecs, setLoadingRecs] = useState(false);
   const [imageErrors, setImageErrors] = useState({});
+  const [recImageErrors, setRecImageErrors] = useState({});
 
   useEffect(() => {
     if (placeId) {
@@ -405,27 +406,34 @@ export default function PlaceDetails() {
               </div>
             ) : recommendations.length > 0 ? (
               <div className="recs-scroll">
-                {recommendations.map((rec) => (
-                  <Link key={rec.placeId} href={`/place/${rec.placeId}`} className="rec-card">
-                    <div className="rec-image">
-                      {rec.photoUrl ? (
-                        <img src={rec.photoUrl} alt={rec.name} />
-                      ) : (
-                        <div className="rec-placeholder">🍵</div>
-                      )}
-                    </div>
-                    <div className="rec-info">
-                      <h4 className="rec-name">{rec.name}</h4>
-                      {rec.rating && (
-                        <p className="rec-rating">
-                          ⭐ {rec.rating.toFixed(1)}
-                          <span className="rec-count">({rec.userRatingsTotal})</span>
-                        </p>
-                      )}
-                      <p className="rec-address">{rec.address}</p>
-                    </div>
-                  </Link>
-                ))}
+                {recommendations.map((rec) => {
+                  const showRecImage = rec.photoUrl && !recImageErrors[rec.placeId];
+                  return (
+                    <Link key={rec.placeId} href={`/place/${rec.placeId}`} className="rec-card">
+                      <div className="rec-image">
+                        {showRecImage ? (
+                          <img 
+                            src={rec.photoUrl} 
+                            alt={rec.name}
+                            onError={() => setRecImageErrors(prev => ({ ...prev, [rec.placeId]: true }))}
+                          />
+                        ) : (
+                          <div className="rec-placeholder">🍵</div>
+                        )}
+                      </div>
+                      <div className="rec-info">
+                        <h4 className="rec-name">{rec.name}</h4>
+                        {rec.rating && (
+                          <p className="rec-rating">
+                            ⭐ {rec.rating.toFixed(1)}
+                            <span className="rec-count">({rec.userRatingsTotal})</span>
+                          </p>
+                        )}
+                        <p className="rec-address">{rec.address}</p>
+                      </div>
+                    </Link>
+                  );
+                })}
               </div>
             ) : (
               <p className="no-recs">No similar spots found nearby</p>

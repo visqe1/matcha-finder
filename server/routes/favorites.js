@@ -4,11 +4,53 @@ const google = require('../google');
 
 const router = express.Router();
 
-function addPhotoUrl(place) {
+// Helper to get photo URL from a place, checking all possible sources
+function getPhotoRef(place) {
+  return place.photoRef || place.rawJson?.photos?.[0]?.photo_reference;
+}
+
+function formatPlace(place) {
+  const photoRef = getPhotoRef(place);
   return {
-    ...place,
-    photoUrl: place.photoRef ? google.getPhotoUrl(place.photoRef, 400) : null,
+    placeId: place.placeId,
+    name: place.name,
+    address: place.address,
+    lat: place.lat,
+    lng: place.lng,
+    rating: place.rating,
+    userRatingsTotal: place.userRatingsTotal,
+    priceLevel: place.priceLevel,
+    photoUrl: photoRef ? google.getPhotoUrl(photoRef, 400) : null,
   };
+}
+
+// Fetch place details to get photos for places missing them
+async function ensurePlaceHasPhotos(place) {
+  const hasPhoto = getPhotoRef(place);
+  if (hasPhoto) return place;
+
+  try {
+    const details = await google.placeDetails(place.placeId);
+    if (!details) return place;
+
+    const newPhotoRef = details.photos?.[0]?.photo_reference;
+    
+    const updated = await prisma.placeCache.update({
+      where: { placeId: place.placeId },
+      data: {
+        ...(newPhotoRef ? { photoRef: newPhotoRef } : {}),
+        rawJson: details,
+        phone: details.formatted_phone_number,
+        website: details.website,
+        openingHoursJson: details.opening_hours || null,
+      },
+    });
+    
+    return updated;
+  } catch (err) {
+    console.error(`Failed to fetch details for ${place.placeId}:`, err.message);
+    return place;
+  }
 }
 
 router.post('/toggle', async (req, res) => {
@@ -42,11 +84,14 @@ router.get('/', async (req, res) => {
   });
 
   const placeIds = favorites.map((f) => f.placeId);
-  const cachedPlaces = await prisma.placeCache.findMany({
+  let cachedPlaces = await prisma.placeCache.findMany({
     where: { placeId: { in: placeIds } },
   });
 
-  const places = cachedPlaces.map(addPhotoUrl);
+  // Ensure all places have photos
+  cachedPlaces = await Promise.all(cachedPlaces.map(ensurePlaceHasPhotos));
+
+  const places = cachedPlaces.map(formatPlace);
   res.json({ places });
 });
 
@@ -64,4 +109,3 @@ router.get('/check', async (req, res) => {
 });
 
 module.exports = router;
-

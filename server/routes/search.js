@@ -3,14 +3,65 @@ const prisma = require('../db');
 const google = require('../google');
 const { sortPlaces } = require('../utils/geo');
 
-function addPhotoUrl(place) {
+const router = express.Router();
+
+// Cache TTL in milliseconds (1 hour - photo refs can expire)
+const SEARCH_CACHE_TTL = 60 * 60 * 1000;
+
+// Helper to get photo URL from a place, checking all possible sources
+function getPhotoRef(place) {
+  return place.photoRef || place.rawJson?.photos?.[0]?.photo_reference;
+}
+
+function formatPlace(place) {
+  const photoRef = getPhotoRef(place);
   return {
-    ...place,
-    photoUrl: place.photoRef ? google.getPhotoUrl(place.photoRef, 400) : null,
+    placeId: place.placeId,
+    name: place.name,
+    address: place.address,
+    lat: place.lat,
+    lng: place.lng,
+    rating: place.rating,
+    userRatingsTotal: place.userRatingsTotal,
+    priceLevel: place.priceLevel,
+    types: place.types,
+    distance: place.distance,
+    photoUrl: photoRef ? google.getPhotoUrl(photoRef, 400) : null,
   };
 }
 
-const router = express.Router();
+// Fetch place details to get photos for places missing them
+async function ensurePlaceHasPhotos(place) {
+  const hasPhoto = getPhotoRef(place);
+  if (hasPhoto) return place;
+
+  // Fetch full details from Google to get photos
+  console.log(`Fetching details for ${place.placeId} (${place.name}) - missing photos`);
+  
+  try {
+    const details = await google.placeDetails(place.placeId);
+    if (!details) return place;
+
+    const newPhotoRef = details.photos?.[0]?.photo_reference;
+    
+    // Update the cache with the new photo data
+    const updated = await prisma.placeCache.update({
+      where: { placeId: place.placeId },
+      data: {
+        ...(newPhotoRef ? { photoRef: newPhotoRef } : {}),
+        rawJson: details,
+        phone: details.formatted_phone_number,
+        website: details.website,
+        openingHoursJson: details.opening_hours || null,
+      },
+    });
+    
+    return updated;
+  } catch (err) {
+    console.error(`Failed to fetch details for ${place.placeId}:`, err.message);
+    return place;
+  }
+}
 
 router.get('/nearby', async (req, res) => {
   const { lat, lng, radius = 3000, sort = 'default' } = req.query;
@@ -28,82 +79,91 @@ router.get('/nearby', async (req, res) => {
 
   const cached = await prisma.placeSearchCache.findUnique({ where: { queryKey } });
 
-  if (cached) {
+  // Check if cache is still valid (not expired)
+  const cacheAge = cached ? Date.now() - new Date(cached.createdAt).getTime() : Infinity;
+  const cacheValid = cached && cacheAge < SEARCH_CACHE_TTL;
+
+  let places;
+
+  if (cacheValid) {
     const placeIds = cached.placeIdsJson;
-    const cachedPlaces = await prisma.placeCache.findMany({
+    places = await prisma.placeCache.findMany({
       where: { placeId: { in: placeIds } },
     });
-    const sorted = sortPlaces(cachedPlaces, sort, centerLat, centerLng);
-    const places = sorted.map(addPhotoUrl);
-    return res.json({
-      places,
-      center: { lat: centerLat, lng: centerLng },
-      meta: { fromCache: true },
+  } else {
+    // Delete stale cache entry if it exists
+    if (cached && !cacheValid) {
+      await prisma.placeSearchCache.delete({ where: { queryKey } }).catch(() => {});
+    }
+
+    const results = await google.nearbySearch(centerLat, centerLng, radiusMeters);
+
+    places = await Promise.all(
+      results.map(async (r) => {
+        const existing = await prisma.placeCache.findUnique({ 
+          where: { placeId: r.place_id } 
+        });
+        const hasDetailedData = existing?.rawJson?.reviews?.length > 0;
+        const newPhotoRef = r.photos?.[0]?.photo_reference;
+        
+        const place = await prisma.placeCache.upsert({
+          where: { placeId: r.place_id },
+          update: {
+            name: r.name,
+            address: r.vicinity,
+            lat: r.geometry?.location?.lat,
+            lng: r.geometry?.location?.lng,
+            rating: r.rating,
+            userRatingsTotal: r.user_ratings_total,
+            priceLevel: r.price_level,
+            types: r.types || [],
+            ...(newPhotoRef ? { photoRef: newPhotoRef } : {}),
+            ...(hasDetailedData ? {} : { rawJson: r }),
+          },
+          create: {
+            placeId: r.place_id,
+            name: r.name,
+            address: r.vicinity,
+            lat: r.geometry?.location?.lat,
+            lng: r.geometry?.location?.lng,
+            rating: r.rating,
+            userRatingsTotal: r.user_ratings_total,
+            priceLevel: r.price_level,
+            types: r.types || [],
+            photoRef: newPhotoRef,
+            rawJson: r,
+          },
+        });
+        return place;
+      })
+    );
+
+    // Cache the search results
+    const placeIds = places.map((p) => p.placeId);
+    await prisma.placeSearchCache.create({
+      data: {
+        queryKey,
+        centerLat,
+        centerLng,
+        radiusMeters,
+        keyword,
+        placeIdsJson: placeIds,
+      },
     });
   }
 
-  const results = await google.nearbySearch(centerLat, centerLng, radiusMeters);
-
-  // Cache results but don't overwrite rawJson if we already have detailed data
-  const places = await Promise.all(
-    results.map(async (r) => {
-      const existing = await prisma.placeCache.findUnique({ 
-        where: { placeId: r.place_id } 
-      });
-      const hasDetailedData = existing?.rawJson?.reviews?.length > 0;
-      
-      const place = await prisma.placeCache.upsert({
-        where: { placeId: r.place_id },
-        update: {
-          name: r.name,
-          address: r.vicinity,
-          lat: r.geometry?.location?.lat,
-          lng: r.geometry?.location?.lng,
-          rating: r.rating,
-          userRatingsTotal: r.user_ratings_total,
-          priceLevel: r.price_level,
-          types: r.types || [],
-          photoRef: r.photos?.[0]?.photo_reference,
-          // Only update rawJson if we don't have detailed data
-          ...(hasDetailedData ? {} : { rawJson: r }),
-        },
-        create: {
-          placeId: r.place_id,
-          name: r.name,
-          address: r.vicinity,
-          lat: r.geometry?.location?.lat,
-          lng: r.geometry?.location?.lng,
-          rating: r.rating,
-          userRatingsTotal: r.user_ratings_total,
-          priceLevel: r.price_level,
-          types: r.types || [],
-          photoRef: r.photos?.[0]?.photo_reference,
-          rawJson: r,
-        },
-      });
-      return place;
-    })
+  // Ensure all places have photos - fetch details for those missing photos
+  const placesWithPhotos = await Promise.all(
+    places.map(ensurePlaceHasPhotos)
   );
 
-  const placeIds = places.map((p) => p.placeId);
-  await prisma.placeSearchCache.create({
-    data: {
-      queryKey,
-      centerLat,
-      centerLng,
-      radiusMeters,
-      keyword,
-      placeIdsJson: placeIds,
-    },
-  });
-
-  const sorted = sortPlaces(places, sort, centerLat, centerLng);
-  const placesWithPhotos = sorted.map(addPhotoUrl);
+  const sorted = sortPlaces(placesWithPhotos, sort, centerLat, centerLng);
+  const formattedPlaces = sorted.map(formatPlace);
 
   res.json({
-    places: placesWithPhotos,
+    places: formattedPlaces,
     center: { lat: centerLat, lng: centerLng },
-    meta: { fromCache: false },
+    meta: { fromCache: cacheValid },
   });
 });
 
@@ -117,13 +177,14 @@ router.get('/cafes', async (req, res) => {
 
   const results = await google.textSearch(q);
 
-  // Cache results but don't overwrite rawJson if we already have detailed data
-  const places = await Promise.all(
+  // Cache results
+  let places = await Promise.all(
     results.slice(0, 20).map(async (r) => {
       const existing = await prisma.placeCache.findUnique({ 
         where: { placeId: r.place_id } 
       });
       const hasDetailedData = existing?.rawJson?.reviews?.length > 0;
+      const newPhotoRef = r.photos?.[0]?.photo_reference;
       
       const place = await prisma.placeCache.upsert({
         where: { placeId: r.place_id },
@@ -136,8 +197,7 @@ router.get('/cafes', async (req, res) => {
           userRatingsTotal: r.user_ratings_total,
           priceLevel: r.price_level,
           types: r.types || [],
-          photoRef: r.photos?.[0]?.photo_reference,
-          // Only update rawJson if we don't have detailed data
+          ...(newPhotoRef ? { photoRef: newPhotoRef } : {}),
           ...(hasDetailedData ? {} : { rawJson: r }),
         },
         create: {
@@ -150,16 +210,18 @@ router.get('/cafes', async (req, res) => {
           userRatingsTotal: r.user_ratings_total,
           priceLevel: r.price_level,
           types: r.types || [],
-          photoRef: r.photos?.[0]?.photo_reference,
+          photoRef: newPhotoRef,
           rawJson: r,
         },
       });
-      return addPhotoUrl(place);
+      return place;
     })
   );
 
-  res.json({ places });
+  // Ensure all places have photos
+  places = await Promise.all(places.map(ensurePlaceHasPhotos));
+
+  res.json({ places: places.map(formatPlace) });
 });
 
 module.exports = router;
-

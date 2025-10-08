@@ -8,6 +8,53 @@ function generateShareId() {
   return Math.random().toString(36).substring(2, 10);
 }
 
+// Helper to get photo URL from a place, checking all possible sources
+function getPhotoRef(place) {
+  return place.photoRef || place.rawJson?.photos?.[0]?.photo_reference;
+}
+
+function formatPlace(place) {
+  const photoRef = getPhotoRef(place);
+  return {
+    placeId: place.placeId,
+    name: place.name,
+    address: place.address,
+    rating: place.rating,
+    userRatingsTotal: place.userRatingsTotal,
+    priceLevel: place.priceLevel,
+    photoUrl: photoRef ? google.getPhotoUrl(photoRef, 400) : null,
+  };
+}
+
+// Fetch place details to get photos for places missing them
+async function ensurePlaceHasPhotos(place) {
+  const hasPhoto = getPhotoRef(place);
+  if (hasPhoto) return place;
+
+  try {
+    const details = await google.placeDetails(place.placeId);
+    if (!details) return place;
+
+    const newPhotoRef = details.photos?.[0]?.photo_reference;
+    
+    const updated = await prisma.placeCache.update({
+      where: { placeId: place.placeId },
+      data: {
+        ...(newPhotoRef ? { photoRef: newPhotoRef } : {}),
+        rawJson: details,
+        phone: details.formatted_phone_number,
+        website: details.website,
+        openingHoursJson: details.opening_hours || null,
+      },
+    });
+    
+    return updated;
+  } catch (err) {
+    console.error(`Failed to fetch details for ${place.placeId}:`, err.message);
+    return place;
+  }
+}
+
 router.post('/create', async (req, res) => {
   const { userId, title } = req.body;
   if (!userId || !title) {
@@ -91,20 +138,14 @@ router.get('/by-share/:shareId', async (req, res) => {
   });
 
   const placeIds = listItems.map((item) => item.placeId);
-  const cachedPlaces = await prisma.placeCache.findMany({
+  let cachedPlaces = await prisma.placeCache.findMany({
     where: { placeId: { in: placeIds } },
   });
 
-  // Format places for PlaceCard component
-  const places = cachedPlaces.map((p) => ({
-    placeId: p.placeId,
-    name: p.name,
-    address: p.address,
-    rating: p.rating,
-    userRatingsTotal: p.userRatingsTotal,
-    priceLevel: p.priceLevel,
-    photoUrl: p.photoRef ? google.getPhotoUrl(p.photoRef, 400) : null,
-  }));
+  // Ensure all places have photos
+  cachedPlaces = await Promise.all(cachedPlaces.map(ensurePlaceHasPhotos));
+
+  const places = cachedPlaces.map(formatPlace);
 
   res.json({
     list: {
@@ -115,4 +156,3 @@ router.get('/by-share/:shareId', async (req, res) => {
 });
 
 module.exports = router;
-
