@@ -1,10 +1,10 @@
 # Matcha Finder
 
-Discover local matcha cafés and drinks based on distance, rating, and popularity.
+Discover local matcha cafes and drinks based on distance, rating, and popularity.
 
 ## Features
 
-- **Discover matcha cafés** - Auto-loads nearby spots using your location
+- **Discover matcha cafes** - Auto-loads nearby spots using your location
 - **Search by location** - Cities, neighborhoods, or addresses
 - **Sort & filter** - By distance, rating, popularity, or best match
 - **Save favorites** - Quick access to places you love
