@@ -5,12 +5,12 @@
 }
 
 :root {
-  --bg: oklch(97.367% 0.02775 98.093);
+  --bg: lch(97.52% 9.32 98.26);
   --bg-card: #ffffff;
   --text: #1a1a1a;
   --text-muted: #6b6b6b;
   --accent: lab(32.59% -22.09 20.55);
-  --accent-light: #40916c;
+  --accent-light: lch(66.77% 35.65 140.98);
   --accent-bg: #d8f3dc;
   --border: #e8e8e8;
   --shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
@@ -52,18 +52,12 @@ body {
 .hero {
   text-align: center;
   padding: 3rem 2rem 1rem;
-
   min-height: 300px;
 
-  background-image:
-    linear-gradient(135deg, rgba(255,255,255,0) 0%, var(--bg) 100%),
-    url("/matcha-hero.PNG");
-
+  background-image: url("/matcha-hero.png");
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  
-  /*background: linear-gradient(135deg, var(--accent-bg) 0%, var(--bg) 100%);*/
 }
 
 .hero-title {

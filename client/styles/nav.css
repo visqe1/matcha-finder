@@ -1,5 +1,6 @@
 .nav {
   display: flex;
+  height: 40px;
   align-items: center;
   justify-content: space-between;
   padding: 1rem 2rem;
@@ -18,8 +19,8 @@
 }
 
 .nav-logo-img {
-  width: 40px;
-  height: 40px;
+  width: 30px;
+  height: 30px;
   display: block;
 }
 
@@ -42,7 +43,7 @@
 }
 
 .nav-login {
-  padding: 0.5rem 1rem;
+  padding: 0.10rem .75rem;
   background: var(--accent);
   color: white !important;
   border-radius: var(--radius-sm);
