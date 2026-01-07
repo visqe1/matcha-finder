@@ -1,35 +1,11 @@
-# Dependencies
-node_modules/
-
-# Environment files
+# secrets
 .env
-.env.local
-.env.*.local
-!*.example
+.env.*
+!.env.example
 
-# Next.js
-.next/
-out/
+# deps/build
+node_modules
+.next
 
-# Build
-dist/
-build/
-
-# Logs
-*.log
-npm-debug.log*
-
-# OS
+# misc
 .DS_Store
-Thumbs.db
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# Prisma
-server/prisma/*.db
-server/prisma/*.db-journal
-

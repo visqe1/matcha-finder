@@ -11,11 +11,11 @@ export default function Nav() {
       </div>
       <div className="nav-right">
         <Link href="/favorites" className="nav-link">
-          ❤️ Favorites
+           ♡ Favorites
         </Link>
         <Link href="/lists" className="nav-link">
-          📋 Lists
-        </Link>
+          ✎ Lists
+        </Link> 
         {user ? (
           <div className="nav-user">
             <span className="nav-username">{user.username}</span>
