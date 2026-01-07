@@ -143,6 +143,12 @@
   z-index: 10;
 }
 
+.fav-icon {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+
 .fav-btn-hero:hover {
   transform: scale(1.1);
   box-shadow: 0 6px 24px rgba(0,0,0,0.25);
@@ -399,6 +405,14 @@
 
 .location-pin {
   font-size: 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.pin-icon {
+  width: 16px;
+  height: 16px;
 }
 
 .location-address {
@@ -439,6 +453,7 @@
   cursor: pointer;
   transition: all 0.2s;
   min-width: 80px;
+  justify-content: center;
 }
 
 .quick-action:hover {
@@ -448,7 +463,16 @@
 }
 
 .qa-icon {
+  height: 28px; 
   font-size: 1.5rem;
+  display: flex;
+  align-items: center;
+}
+
+.qa-icon-img {
+  width: 18px;
+  height: 18px;
+  display: block;
 }
 
 .qa-label {

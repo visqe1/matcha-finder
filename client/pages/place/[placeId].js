@@ -230,7 +230,11 @@ export default function PlaceDetails() {
                 </div>
               ))}
               <button className="fav-btn-hero" onClick={handleFavorite}>
-                {isFavorited ? '❤️' : '🤍'}
+                <img
+                  className="fav-icon"
+                  src={isFavorited ? "/heart-icon.png" : "/unheart-icon.png"}
+                  alt=""
+                />
               </button>
             </div>
           ) : (
@@ -273,7 +277,9 @@ export default function PlaceDetails() {
               )}
               {/* Inline address with directions */}
               <div className="location-inline" onClick={openInMaps}>
-                <span className="location-pin">📍</span>
+                <span className="location-pin">
+                  <img className="pin-icon" src="/location-icon.PNG" alt="" />
+                </span>
                 <span className="location-address">{place.address}</span>
                 <span className="location-arrow">→</span>
               </div>
@@ -287,7 +293,13 @@ export default function PlaceDetails() {
               <span className="qa-label">Directions</span>
             </button>
             <button className="quick-action" onClick={handleFavorite}>
-              <span className="qa-icon">{isFavorited ? '❤️' : '🤍'}</span>
+              <span className="qa-icon" aria-hidden="true">
+                <img
+                  className="qa-icon-img"
+                  src={isFavorited ? "/heart-icon.png" : "/unheart-icon.png"}
+                  alt=""
+                />
+              </span>
               <span className="qa-label">{isFavorited ? 'Saved' : 'Save'}</span>
             </button>
             <button className="quick-action" onClick={searchMenu}>

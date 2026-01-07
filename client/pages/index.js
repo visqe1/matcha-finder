@@ -167,7 +167,7 @@ export default function Home() {
         <form className="cafe-search" onSubmit={handleCafeSearch}>
           <input
             type="text"
-            placeholder="Search for a matcha café..."
+            placeholder="Search for a matcha cafe..."
             value={cafeQuery}
             onChange={(e) => setCafeQuery(e.target.value)}
           />
