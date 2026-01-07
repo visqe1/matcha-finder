@@ -289,7 +289,9 @@ export default function PlaceDetails() {
           {/* Quick Actions Row */}
           <section className="quick-actions-row">
             <button className="quick-action" onClick={openInMaps}>
-              <span className="qa-icon">🗺️</span>
+              <span className="qa-icon" aria-hidden="true">
+                <img className="qa-icon-img" src="/directions-icon.png" alt="" />
+              </span>
               <span className="qa-label">Directions</span>
             </button>
             <button className="quick-action" onClick={handleFavorite}>
@@ -303,18 +305,24 @@ export default function PlaceDetails() {
               <span className="qa-label">{isFavorited ? 'Saved' : 'Save'}</span>
             </button>
             <button className="quick-action" onClick={searchMenu}>
-              <span className="qa-icon">📋</span>
+              <span className="qa-icon" aria-hidden="true">
+                <img className="qa-icon-img" src="/menu-icon.png" alt="" />
+              </span>
               <span className="qa-label">Menu</span>
             </button>
             {place.website && (
               <a href={place.website} target="_blank" rel="noopener noreferrer" className="quick-action">
-                <span className="qa-icon">🌐</span>
+                <span className="qa-icon" aria-hidden="true">
+                  <img className="qa-icon-img" src="/website-icon.png" alt="" />
+                </span>
                 <span className="qa-label">Website</span>
               </a>
             )}
             {place.phone && (
               <a href={`tel:${place.phone}`} className="quick-action">
-                <span className="qa-icon">📞</span>
+                <span className="qa-icon" aria-hidden="true">
+                  <img className="qa-icon-img" src="/call-icon.png" alt="" />
+                </span>
                 <span className="qa-label">Call</span>
               </a>
             )}
