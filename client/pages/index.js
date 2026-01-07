@@ -157,8 +157,11 @@ export default function Home() {
       <Nav />
 
       <header className="hero">
-        <h1 className="hero-title">🍵 Matcha Finder</h1>
-        <p className="hero-subtitle">Discover the best matcha spots</p>
+        <h1 className="hero-title">
+          <img className="hero-logo" src="/matcha-icon.png" alt="" />
+          Matcha Finder
+        </h1>
+        <p className="hero-subtitle">Discover the best matcha spots!</p>
         
         {/* Cafe Search Bar */}
         <form className="cafe-search" onSubmit={handleCafeSearch}>
@@ -186,7 +189,11 @@ export default function Home() {
           <>
             <div className="location-bar">
               <div className="location-display" onClick={() => setShowLocationSearch(true)}>
-                <span className="location-icon">📍</span>
+                <img
+                  className="location-icon"
+                  src="/location-icon.png"
+                  alt="Location"
+                />
                 <span className="location-text">
                   {locationName || 'Set your location'}
                 </span>
@@ -204,7 +211,8 @@ export default function Home() {
                     autoFocus
                   />
                   <button className="geo-btn" onClick={useMyLocation}>
-                    📍 Use my location
+                    <img className="geo-icon" src="/location-icon.png" alt="" />
+                    <span>Use my location</span>
                   </button>
                   {locationSuggestions.length > 0 && (
                     <ul className="location-suggestions">

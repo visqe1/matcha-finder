@@ -17,6 +17,12 @@
   text-decoration: none;
 }
 
+.nav-logo-img {
+  width: 40px;
+  height: 40px;
+  display: block;
+}
+
 .nav-right {
   display: flex;
   align-items: center;

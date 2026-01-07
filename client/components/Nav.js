@@ -7,7 +7,9 @@ export default function Nav() {
   return (
     <nav className="nav">
       <div className="nav-left">
-        <Link href="/" className="nav-logo">🍵</Link>
+        <Link href="/" className="nav-logo" aria-label="Matcha Finder home">
+          <img className="nav-logo-img" src="/matcha-icon.png" alt="" />
+        </Link>
       </div>
       <div className="nav-right">
         <Link href="/favorites" className="nav-link">

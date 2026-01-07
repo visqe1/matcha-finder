@@ -70,6 +70,14 @@ body {
   font-size: 2.5rem;
   font-weight: 700;
   margin-bottom: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.hero-logo {
+  width: 60px;
+  height: 60px;
 }
 
 .hero-subtitle {
@@ -168,6 +176,9 @@ body {
 
 .location-icon {
   font-size: 1.25rem;
+  width: 18px;
+  height: 18px;
+  vertical-align: middle;
 }
 
 .location-text {
@@ -217,6 +228,15 @@ body {
   font-size: 0.9rem;
   cursor: pointer;
   margin-bottom: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.geo-icon {
+  width: 18px;
+  height: 18px;
 }
 
 .geo-btn:hover {
