@@ -1,11 +1,8 @@
-# secrets
 .env
 .env.*
 !.env.example
 
-# deps/build
 node_modules
 .next
 
-# misc
 .DS_Store
