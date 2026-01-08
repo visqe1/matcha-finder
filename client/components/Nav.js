@@ -16,7 +16,7 @@ export default function Nav() {
            ♡ Favorites
         </Link>
         <Link href="/lists" className="nav-link">
-          ✎ Lists
+          ✽ Lists
         </Link> 
         {user ? (
           <div className="nav-user">
