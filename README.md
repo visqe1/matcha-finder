@@ -72,34 +72,6 @@ PORT=4000
 NEXT_PUBLIC_SERVER_URL=http://localhost:4000
 ```
 
-## API Endpoints
-
-### Users
-- `POST /api/users/register` - Create new account (username + password)
-- `POST /api/users/login` - Login with username + password
-
-### Places
-- `GET /api/places/autocomplete?input=...` - Location autocomplete (cities, neighborhoods)
-- `GET /api/places/details/:placeId` - Get place details (always fetches fresh)
-- `GET /api/places/:placeId` - Get place with full details, photos, reviews
-- `GET /api/places/:placeId/recommendations?limit=6` - Get nearby similar cafés
-
-### Search
-- `GET /api/search/nearby?lat=...&lng=...&radius=...&sort=...` - Search matcha cafés nearby
-- `GET /api/search/cafes?q=...` - Search cafés by name/query
-
-### Favorites
-- `POST /api/favorites/toggle` - Toggle favorite
-- `GET /api/favorites?userId=...` - Get user favorites
-- `GET /api/favorites/check?userId=...&placeId=...` - Check if favorited
-
-### Lists
-- `POST /api/lists/create` - Create list
-- `GET /api/lists?userId=...` - Get user lists with item counts
-- `POST /api/lists/add-item` - Add place to list
-- `POST /api/lists/remove-item` - Remove place from list
-- `GET /api/lists/by-share/:shareId` - Get public list with places
-
 ## Google API Setup
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
