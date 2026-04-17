@@ -2,10 +2,6 @@
 
 Discover local matcha cafes and drinks based on distance, rating, and popularity.
 
-## Demo
-Quick preview (GIF):
-![Matcha Finder demo](assets/demo.gif)
-
 ## Features
 
 - **Discover matcha cafes** - Auto-loads nearby spots using your location
