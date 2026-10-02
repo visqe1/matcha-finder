@@ -1,17 +1,29 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import { getPlace, toggleFavorite, checkFavorite, getLists, addToList, createList, getRecommendations } from '../../lib/api';
+import { getPlace, toggleFavorite, checkFavorite, getLists, addToList, createList, getRecommendations, photoSrc } from '../../lib/api';
 import { useAuth } from '../../lib/useAuth';
 import Nav from '../../components/Nav';
 import Toast from '../../components/Toast';
+import Icon from '../../components/Icon';
+import LazyPhoto from '../../components/LazyPhoto';
+import { matchaScore, MIN_MATCHA_SCORE } from '../../lib/matchaScore';
+
+// Where the café page's back link goes, based on ?from= set by the page that linked here
+function getBackTo(from) {
+  if (from === 'favorites') return { href: '/favorites', label: 'Back to favorites' };
+  const listShareId = typeof from === 'string' && from.match(/^list:([A-Za-z0-9_-]+)$/)?.[1];
+  if (listShareId) return { href: `/lists/${listShareId}`, label: 'Back to list' };
+  return { href: '/', label: 'Back to search' };
+}
 
 export default function PlaceDetails() {
   const router = useRouter();
-  const { placeId } = router.query;
+  const { placeId, from } = router.query;
   const { user } = useAuth();
   const [place, setPlace] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [isFavorited, setIsFavorited] = useState(false);
   const [lists, setLists] = useState([]);
   const [selectedListId, setSelectedListId] = useState('');
@@ -22,11 +34,18 @@ export default function PlaceDetails() {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [recommendations, setRecommendations] = useState([]);
   const [loadingRecs, setLoadingRecs] = useState(false);
+  const [recsError, setRecsError] = useState(null);
   const [imageErrors, setImageErrors] = useState({});
+  const [photoScores, setPhotoScores] = useState({});
+  const [avatarErrors, setAvatarErrors] = useState({});
   const [recImageErrors, setRecImageErrors] = useState({});
 
   useEffect(() => {
     if (placeId) {
+      setImageErrors({});
+      setPhotoScores({});
+      setAvatarErrors({});
+      setSelectedPhoto(0);
       loadPlace();
       loadRecommendations();
     }
@@ -49,6 +68,7 @@ export default function PlaceDetails() {
   const loadPlace = async () => {
     setLoading(true);
     const data = await getPlace(placeId);
+    setLoadError(data.place ? null : data.error || null);
     setPlace(data.place);
     setLoading(false);
   };
@@ -56,6 +76,8 @@ export default function PlaceDetails() {
   const loadRecommendations = async () => {
     setLoadingRecs(true);
     const data = await getRecommendations(placeId, 6);
+    // Only the "unavailable" response carries an (empty) list; other errors keep the default text
+    setRecsError(data.error && data.recommendations ? data.error : null);
     setRecommendations(data.recommendations || []);
     setLoadingRecs(false);
   };
@@ -81,7 +103,11 @@ export default function PlaceDetails() {
 
   const handleAddToList = async () => {
     if (!selectedListId) return;
-    await addToList(selectedListId, placeId);
+    const result = await addToList(selectedListId, user.id, placeId);
+    if (result.error) {
+      setToast(result.error);
+      return;
+    }
     const listName = lists.find(l => l.id === selectedListId)?.title;
     setToast(`Added to "${listName}"!`);
     setSelectedListId('');
@@ -91,8 +117,8 @@ export default function PlaceDetails() {
     if (!newListName.trim()) return;
     const data = await createList(user.id, newListName.trim());
     if (data.list) {
-      await addToList(data.list.id, placeId);
-      setToast(`Created "${newListName}" and added!`);
+      const result = await addToList(data.list.id, user.id, placeId);
+      setToast(result.error || `Created "${newListName}" and added!`);
       setNewListName('');
       setShowNewList(false);
       loadUserData();
@@ -104,8 +130,14 @@ export default function PlaceDetails() {
     window.open(url, '_blank');
   };
 
+  // Opens Google's reviews panel for this place rather than the general listing
   const openGoogleReviews = () => {
-    const url = `https://www.google.com/maps/place/?q=place_id:${placeId}`;
+    const url = `https://search.google.com/local/reviews?placeid=${placeId}`;
+    window.open(url, '_blank');
+  };
+
+  const openWriteReview = () => {
+    const url = `https://search.google.com/local/writereview?placeid=${placeId}`;
     window.open(url, '_blank');
   };
 
@@ -114,16 +146,19 @@ export default function PlaceDetails() {
     window.open(url, '_blank');
   };
 
-  const handleImageError = useCallback((index) => {
-    setImageErrors(prev => ({ ...prev, [index]: true }));
+  const handleImageError = useCallback((url) => {
+    setImageErrors(prev => ({ ...prev, [url]: true }));
   }, []);
 
-  const navigatePhoto = (direction) => {
-    const photos = place?.photos || [];
+  const scorePhoto = useCallback((url, img) => {
+    setPhotoScores(prev => (url in prev ? prev : { ...prev, [url]: matchaScore(img) }));
+  }, []);
+
+  const navigatePhoto = (direction, count) => {
     if (direction === 'next') {
-      setSelectedPhoto((prev) => (prev + 1) % photos.length);
+      setSelectedPhoto((prev) => (prev + 1) % count);
     } else {
-      setSelectedPhoto((prev) => (prev - 1 + photos.length) % photos.length);
+      setSelectedPhoto((prev) => (prev - 1 + count) % count);
     }
   };
 
@@ -147,19 +182,38 @@ export default function PlaceDetails() {
         <Nav />
         <main className="main-content centered">
           <div className="empty-state">
-            <p className="empty-icon">😕</p>
-            <p>Place not found</p>
-            <Link href="/" className="back-link">← Back to search</Link>
+            <span className="empty-icon"><Icon name="cup" size={28} /></span>
+            {loadError && loadError !== 'Place not found' ? (
+              <>
+                <h2>{loadError}</h2>
+                <p>Try again in a little while.</p>
+              </>
+            ) : (
+              <h2>Place not found</h2>
+            )}
+            <Link href="/" className="cta-btn">Back to search</Link>
           </div>
         </main>
       </div>
     );
   }
 
+  const backTo = getBackTo(from);
   const openingHours = place.openingHours?.weekday_text;
   const isOpenNow = place.openingHours?.open_now;
   const priceLevel = place.priceLevel ? '$'.repeat(place.priceLevel) : null;
-  const photos = (place.photos || []).filter((_, i) => !imageErrors[i]);
+  const allPhotos = (place.photos || []).map(photoSrc).filter((url) => !imageErrors[url]);
+  // Lead with the most matcha-green of the photos the collage loads anyway, since
+  // that's the only one phones show. Wait until all are scored so it swaps once.
+  const shownPhotos = allPhotos.slice(0, 5);
+  const allScored = shownPhotos.length > 1 && shownPhotos.every((url) => url in photoScores);
+  const greenest = allScored
+    ? shownPhotos.reduce((best, url) => (photoScores[url] > photoScores[best] ? url : best))
+    : null;
+  const photos =
+    greenest && greenest !== allPhotos[0] && photoScores[greenest] >= MIN_MATCHA_SCORE
+      ? [greenest, ...allPhotos.filter((url) => url !== greenest)]
+      : allPhotos;
   const reviews = place.reviews || [];
   const hasPhotos = photos.length > 0;
 
@@ -186,17 +240,20 @@ export default function PlaceDetails() {
 
       {lightboxOpen && hasPhotos && (
         <div className="lightbox" onClick={() => setLightboxOpen(false)}>
-          <button className="lightbox-close" onClick={() => setLightboxOpen(false)}>×</button>
-          <button className="lightbox-nav prev" onClick={(e) => { e.stopPropagation(); navigatePhoto('prev'); }}>‹</button>
+          <button className="lightbox-close" aria-label="Close photos" onClick={() => setLightboxOpen(false)}><Icon name="close" size={24} /></button>
+          <button className="lightbox-nav prev" onClick={(e) => { e.stopPropagation(); navigatePhoto('prev', photos.length); }}>‹</button>
           <div className="lightbox-content" onClick={(e) => e.stopPropagation()}>
-            <img src={photos[selectedPhoto]} alt={place.name} />
+            <img src={photos[selectedPhoto]} alt={place.name} crossOrigin="anonymous" />
             <div className="lightbox-counter">{selectedPhoto + 1} / {photos.length}</div>
           </div>
-          <button className="lightbox-nav next" onClick={(e) => { e.stopPropagation(); navigatePhoto('next'); }}>›</button>
+          <button className="lightbox-nav next" onClick={(e) => { e.stopPropagation(); navigatePhoto('next', photos.length); }}>›</button>
         </div>
       )}
 
       <div className="place-page">
+        <Link href={backTo.href} className="back-link place-back-link">
+          <Icon name="arrowLeft" size={16} /> {backTo.label}
+        </Link>
         <section className="photo-hero">
           {hasPhotos ? (
             <div className={`photo-collage photos-${Math.min(photos.length, 5)}`}>
@@ -204,54 +261,62 @@ export default function PlaceDetails() {
                 className="photo-main-cell" 
                 onClick={() => { setSelectedPhoto(0); setLightboxOpen(true); }}
               >
-                <img 
-                  src={photos[0]} 
+                <img
+                  key={photos[0]}
+                  src={photos[0]}
                   alt={place.name}
-                  onError={() => handleImageError(0)}
+                  crossOrigin="anonymous"
+                  onLoad={(e) => scorePhoto(photos[0], e.currentTarget)}
+                  onError={() => handleImageError(photos[0])}
                 />
                 <div className="photo-overlay">
                   <span className="view-photos-btn">View all photos</span>
                 </div>
               </div>
               {photos.slice(1, 5).map((photo, i) => (
-                <div 
-                  key={i + 1} 
+                <div
+                  key={photo}
                   className={`photo-cell photo-cell-${i + 1}`}
                   onClick={() => { setSelectedPhoto(i + 1); setLightboxOpen(true); }}
                 >
-                  <img 
-                    src={photo} 
+                  <img
+                    src={photo}
                     alt=""
-                    onError={() => handleImageError(i + 1)}
+                    crossOrigin="anonymous"
+                    onLoad={(e) => scorePhoto(photo, e.currentTarget)}
+                    onError={() => handleImageError(photo)}
                   />
                   {i === 3 && photos.length > 5 && (
                     <div className="photo-more-overlay">+{photos.length - 5}</div>
                   )}
                 </div>
               ))}
-              <button className="fav-btn-hero" onClick={handleFavorite}>
-                <img
-                  className="fav-icon"
-                  src={isFavorited ? "/heart-icon.png" : "/unheart-icon.png"}
-                  alt=""
-                />
+              <button
+                className={`fav-btn-hero${isFavorited ? ' active' : ''}`}
+                onClick={handleFavorite}
+                aria-label={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
+              >
+                <Icon name="heart" size={22} filled={isFavorited} />
               </button>
             </div>
           ) : (
             <div className="photo-placeholder">
               <div className="placeholder-content">
-                <span className="placeholder-icon">🍵</span>
+                <Icon name="cup" size={40} />
                 <span className="placeholder-text">No photos available</span>
               </div>
-              <button className="fav-btn-hero" onClick={handleFavorite}>
-                {isFavorited ? '❤️' : '🤍'}
+              <button
+                className={`fav-btn-hero${isFavorited ? ' active' : ''}`}
+                onClick={handleFavorite}
+                aria-label={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
+              >
+                <Icon name="heart" size={22} filled={isFavorited} />
               </button>
             </div>
           )}
         </section>
 
         <main className="place-content">
-          <Link href="/" className="back-link">← Back to search</Link>
 
           {/* Header Section */}
           <header className="place-header">
@@ -268,7 +333,7 @@ export default function PlaceDetails() {
                 {priceLevel && <span className="price-indicator">{priceLevel}</span>}
                 {isOpenNow !== undefined && (
                   <span className={`open-status ${isOpenNow ? 'open' : 'closed'}`}>
-                    {isOpenNow ? '● Open Now' : '● Closed'}
+                    {isOpenNow ? 'Open now' : 'Closed'}
                   </span>
                 )}
               </div>
@@ -277,11 +342,9 @@ export default function PlaceDetails() {
               )}
               {/* Inline address with directions */}
               <div className="location-inline" onClick={openInMaps}>
-                <span className="location-pin">
-                  <img className="pin-icon" src="/location-icon.PNG" alt="" />
-                </span>
+                <Icon name="pin" size={18} />
                 <span className="location-address">{place.address}</span>
-                <span className="location-arrow">→</span>
+                <Icon name="arrowRight" size={16} className="location-arrow" />
               </div>
             </div>
           </header>
@@ -290,30 +353,26 @@ export default function PlaceDetails() {
           <section className="quick-actions-row">
             <button className="quick-action" onClick={openInMaps}>
               <span className="qa-icon" aria-hidden="true">
-                <img className="qa-icon-img" src="/directions-icon.png" alt="" />
+                <Icon name="directions" size={22} />
               </span>
               <span className="qa-label">Directions</span>
             </button>
             <button className="quick-action" onClick={handleFavorite}>
               <span className="qa-icon" aria-hidden="true">
-                <img
-                  className="qa-icon-img"
-                  src={isFavorited ? "/heart-icon.png" : "/unheart-icon.png"}
-                  alt=""
-                />
+                <Icon name="heart" size={22} filled={isFavorited} />
               </span>
               <span className="qa-label">{isFavorited ? 'Saved' : 'Save'}</span>
             </button>
             <button className="quick-action" onClick={searchMenu}>
               <span className="qa-icon" aria-hidden="true">
-                <img className="qa-icon-img" src="/menu-icon.png" alt="" />
+                <Icon name="list" size={22} />
               </span>
               <span className="qa-label">Menu</span>
             </button>
             {place.website && (
               <a href={place.website} target="_blank" rel="noopener noreferrer" className="quick-action">
                 <span className="qa-icon" aria-hidden="true">
-                  <img className="qa-icon-img" src="/website-icon.png" alt="" />
+                  <Icon name="globe" size={22} />
                 </span>
                 <span className="qa-label">Website</span>
               </a>
@@ -321,7 +380,7 @@ export default function PlaceDetails() {
             {place.phone && (
               <a href={`tel:${place.phone}`} className="quick-action">
                 <span className="qa-icon" aria-hidden="true">
-                  <img className="qa-icon-img" src="/call-icon.png" alt="" />
+                  <Icon name="phone" size={22} />
                 </span>
                 <span className="qa-label">Call</span>
               </a>
@@ -363,7 +422,7 @@ export default function PlaceDetails() {
             <div className="section-header">
               <h2>Reviews</h2>
               <button className="see-all-link" onClick={openGoogleReviews}>
-                See all on Google →
+                See all on Google <Icon name="arrowRight" size={14} />
               </button>
             </div>
             
@@ -383,8 +442,15 @@ export default function PlaceDetails() {
                     <article key={i} className="review-card">
                       <header className="review-header">
                         <div className="reviewer-info">
-                          {review.authorPhoto ? (
-                            <img src={review.authorPhoto} alt="" className="reviewer-avatar" />
+                          {review.authorPhoto && !avatarErrors[i] ? (
+                            // Google's avatar server rejects requests that carry a Referer
+                            <img
+                              src={review.authorPhoto}
+                              alt=""
+                              className="reviewer-avatar"
+                              referrerPolicy="no-referrer"
+                              onError={() => setAvatarErrors((prev) => ({ ...prev, [i]: true }))}
+                            />
                           ) : (
                             <div className="reviewer-avatar-placeholder">
                               {review.author?.charAt(0) || '?'}
@@ -408,9 +474,9 @@ export default function PlaceDetails() {
               </>
             ) : (
               <div className="no-reviews">
-                <p className="no-reviews-icon">💬</p>
+                <span className="empty-icon"><Icon name="message" size={24} /></span>
                 <p>No reviews yet</p>
-                <button className="see-all-link" onClick={openGoogleReviews}>
+                <button className="see-all-link" onClick={openWriteReview}>
                   Be the first to review on Google
                 </button>
               </div>
@@ -419,7 +485,7 @@ export default function PlaceDetails() {
 
           {/* Recommendations */}
           <section className="recommendations-section">
-            <h2>Similar Matcha Spots Nearby</h2>
+            <h2>You might also like</h2>
             {loadingRecs ? (
               <div className="recs-loading">
                 <div className="spinner small"></div>
@@ -432,42 +498,42 @@ export default function PlaceDetails() {
                     <Link key={rec.placeId} href={`/place/${rec.placeId}`} className="rec-card">
                       <div className="rec-image">
                         {showRecImage ? (
-                          <img 
-                            src={rec.photoUrl} 
+                          <LazyPhoto
+                            src={photoSrc(rec.photoUrl)}
                             alt={rec.name}
                             onError={() => setRecImageErrors(prev => ({ ...prev, [rec.placeId]: true }))}
                           />
                         ) : (
-                          <div className="rec-placeholder">🍵</div>
+                          <div className="rec-placeholder"><Icon name="cup" size={28} /></div>
                         )}
                       </div>
                       <div className="rec-info">
                         <h4 className="rec-name">{rec.name}</h4>
                         {rec.rating && (
                           <p className="rec-rating">
-                            ⭐ {rec.rating.toFixed(1)}
+                            <Icon name="star" size={13} filled /> {rec.rating.toFixed(1)}
                             <span className="rec-count">({rec.userRatingsTotal})</span>
                           </p>
                         )}
-                        <p className="rec-address">{rec.address}</p>
+                        <p className="rec-address">{rec.area || rec.address}</p>
                       </div>
                     </Link>
                   );
                 })}
               </div>
             ) : (
-              <p className="no-recs">No similar spots found nearby</p>
+              <p className="no-recs">{recsError || 'No similar spots found nearby'}</p>
             )}
           </section>
 
           {/* Save to List */}
           {user && (
             <section className="save-section">
-              <h2>Save to List</h2>
+              <h2>Save to a list</h2>
               {lists.length > 0 && !showNewList && (
                 <div className="list-add-row">
                   <select value={selectedListId} onChange={(e) => setSelectedListId(e.target.value)}>
-                    <option value="">Choose a list...</option>
+                    <option value="">Choose a list</option>
                     {lists.map((list) => (
                       <option key={list.id} value={list.id}>{list.title}</option>
                     ))}
@@ -481,13 +547,13 @@ export default function PlaceDetails() {
                 <div className="new-list-form">
                   <input
                     type="text"
-                    placeholder="List name..."
+                    placeholder="New list name"
                     value={newListName}
                     onChange={(e) => setNewListName(e.target.value)}
                     autoFocus
                   />
                   <button onClick={handleCreateAndAdd} disabled={!newListName.trim()}>
-                    Create & Add
+                    Create and add
                   </button>
                   <button className="cancel-btn" onClick={() => setShowNewList(false)}>
                     Cancel
@@ -495,7 +561,7 @@ export default function PlaceDetails() {
                 </div>
               ) : (
                 <button className="new-list-btn" onClick={() => setShowNewList(true)}>
-                  + Create new list
+                  <Icon name="plus" size={16} /> Create new list
                 </button>
               )}
             </section>
@@ -503,7 +569,7 @@ export default function PlaceDetails() {
 
           {!user && (
             <div className="login-prompt">
-              <Link href="/login">Log in</Link> to save favorites and create lists
+              <Link href="/login">Log in</Link> to save favorites and create lists.
             </div>
           )}
         </main>

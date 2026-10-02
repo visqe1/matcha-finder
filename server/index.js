@@ -8,6 +8,7 @@ const placesRoutes = require('./routes/places');
 const searchRoutes = require('./routes/search');
 const favoritesRoutes = require('./routes/favorites');
 const listsRoutes = require('./routes/lists');
+const photosRoutes = require('./routes/photos');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -29,6 +30,7 @@ app.use('/api/places', placesRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/favorites', favoritesRoutes);
 app.use('/api/lists', listsRoutes);
+app.use('/api/photo', photosRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);

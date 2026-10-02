@@ -1,6 +1,6 @@
-# Matcha Finder
+# matchatime
 
-Discover local matcha cafes and drinks based on distance, rating, and popularity.
+Find your next sip: discover local matcha cafés and share lists of your favorites with friends.
 
 ## Features
 

@@ -1,0 +1,133 @@
+/* ---------- Discover (home) layout ---------- */
+.discover.has-filters {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr);
+  gap: 2.5rem;
+  align-items: start;
+}
+
+.filters {
+  position: sticky;
+  top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
+
+.filter-label,
+.results-count {
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.filter-label {
+  margin-bottom: 0.6rem;
+}
+
+/* A thin track on the left; the selected option draws a bold bar over it */
+.filter-options {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  border-left: 2px solid var(--card-line);
+}
+
+.filter-option {
+  margin-left: -2px;
+  background: none;
+  border: none;
+  border-left: 2px solid transparent;
+  border-radius: 0;
+  padding: 0.4rem 0 0.4rem 0.9rem;
+  font-size: 0.95rem;
+  color: var(--text-faint);
+  text-align: left;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.filter-option:hover {
+  color: var(--text);
+  border-left-color: var(--matcha);
+}
+
+.filter-option.active {
+  color: var(--forest);
+  font-weight: 700;
+  border-left-color: var(--forest);
+}
+
+.results-count {
+  margin-bottom: 1rem;
+}
+
+.search-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding-bottom: 1rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px dashed var(--divider);
+}
+
+.search-banner p {
+  font-size: 1.05rem;
+}
+
+/* On small screens the sidebar becomes rows of chips above the results */
+@media (max-width: 720px) {
+  .discover.has-filters {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.5rem;
+  }
+
+  .filters {
+    position: static;
+    gap: 1rem;
+  }
+
+  .filter-options {
+    flex-direction: row;
+    align-items: center;
+    border-left: none;
+    gap: 0.4rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin: 0 calc(-1 * var(--gutter));
+    padding: 0 var(--gutter);
+  }
+
+  .filter-options::-webkit-scrollbar {
+    display: none;
+  }
+
+  .filter-option {
+    margin-left: 0;
+    flex-shrink: 0;
+    border: 1px solid var(--card-line);
+    border-radius: 999px;
+    padding: 0.35rem 0.9rem;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    background: var(--card);
+  }
+
+  .filter-option:hover {
+    border-color: var(--divider);
+  }
+
+  .filter-option.active {
+    background: var(--forest);
+    border-color: var(--forest);
+    color: var(--cream);
+    font-weight: 500;
+  }
+
+  .places-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 0.9rem;
+  }
+}

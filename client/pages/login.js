@@ -55,11 +55,11 @@ export default function LoginPage() {
       <Nav />
       <main className="main-content centered">
         <div className="login-card">
-          <h1>{mode === 'login' ? 'Welcome Back' : 'Create Account'}</h1>
+          <h1>{mode === 'login' ? 'Welcome back' : 'Create account'}</h1>
           <p className="login-subtitle">
             {mode === 'login'
-              ? 'Log in to access your favorites and lists'
-              : 'Sign up to save favorites and create lists'}
+              ? 'Log in to see your favorites and lists.'
+              : 'Sign up to save favorites and share lists.'}
           </p>
 
           <form onSubmit={handleSubmit}>
@@ -88,7 +88,7 @@ export default function LoginPage() {
               className="login-btn"
               disabled={loading || !username.trim() || !password}
             >
-              {loading ? 'Loading...' : mode === 'login' ? 'Log In' : 'Create Account'}
+              {loading ? 'Loading...' : mode === 'login' ? 'Log in' : 'Create account'}
             </button>
           </form>
 

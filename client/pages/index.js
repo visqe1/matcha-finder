@@ -3,9 +3,16 @@ import { searchNearby, searchCafes, autocomplete, getPlaceDetails } from '../lib
 import { useAuth } from '../lib/useAuth';
 import Nav from '../components/Nav';
 import PlaceCard from '../components/PlaceCard';
+import Icon from '../components/Icon';
 
 const MILES_TO_METERS = 1609.34;
 const RADIUS_OPTIONS = [1, 2, 5, 10, 25];
+const SORT_OPTIONS = [
+  { value: 'default', label: 'Best match' },
+  { value: 'distance', label: 'Nearest' },
+  { value: 'rating', label: 'Top rated' },
+  { value: 'popularity', label: 'Most popular' },
+];
 
 export default function Home() {
   const { user } = useAuth();
@@ -13,6 +20,7 @@ export default function Home() {
   const [locationName, setLocationName] = useState('');
   const [places, setPlaces] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [sort, setSort] = useState('default');
   const [radiusMiles, setRadiusMiles] = useState(5);
   const [showLocationSearch, setShowLocationSearch] = useState(false);
@@ -47,7 +55,7 @@ export default function Home() {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-          saveLocation(loc, 'Your Location');
+          saveLocation(loc, 'Your location');
           loadNearbyPlaces(loc.lat, loc.lng, sort, radiusMiles);
         },
         () => {
@@ -73,6 +81,7 @@ export default function Home() {
     setSearchMode('nearby');
     const radiusMeters = Math.round(radius * MILES_TO_METERS);
     const data = await searchNearby(lat, lng, radiusMeters, sortBy);
+    setLoadError(data.error || null);
     setPlaces(data.places || []);
     setLoading(false);
   };
@@ -84,6 +93,7 @@ export default function Home() {
     setLoading(true);
     setSearchMode('search');
     const data = await searchCafes(cafeQuery);
+    setLoadError(data.error || null);
     setPlaces(data.places || []);
     setLoading(false);
   };
@@ -143,7 +153,7 @@ export default function Home() {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        saveLocation(loc, 'Your Location');
+        saveLocation(loc, 'Your location');
         setShowLocationSearch(false);
         setLocationQuery('');
         loadNearbyPlaces(loc.lat, loc.lng, sort, radiusMiles);
@@ -152,155 +162,177 @@ export default function Home() {
     );
   };
 
+  const showFilters = searchMode === 'nearby' && location;
+
   return (
     <div className="page">
-      <Nav />
+      <Nav>
+        <h1 className="hero-title">Find your next sip</h1>
+        <p className="hero-subtitle">Discover matcha cafés nearby and share your favorites.</p>
 
-      <header className="hero">
-        <h1 className="hero-title">
-          <img className="hero-logo" src="/matcha-icon.png" alt="" />
-          Matcha Finder
-        </h1>
-        <p className="hero-subtitle">Discover the best matcha spots!</p>
-        
-        {/* Cafe Search Bar */}
-        <form className="cafe-search" onSubmit={handleCafeSearch}>
-          <input
-            type="text"
-            placeholder="Search for a matcha cafe..."
-            value={cafeQuery}
-            onChange={(e) => setCafeQuery(e.target.value)}
-          />
-          <button type="submit">Search</button>
-        </form>
-      </header>
+        <div className="hero-search">
+          <form className="cafe-search" onSubmit={handleCafeSearch}>
+            <Icon name="search" size={18} />
+            <input
+              type="text"
+              placeholder="Search for a matcha café..."
+              aria-label="Search for a matcha café"
+              value={cafeQuery}
+              onChange={(e) => setCafeQuery(e.target.value)}
+            />
+            <button type="submit">Search</button>
+          </form>
 
-      <main className="main-content">
-        {/* Search results banner */}
-        {searchMode === 'search' && (
-          <div className="search-banner">
-            <p>Showing results for "<strong>{cafeQuery}</strong>"</p>
-            <button onClick={clearSearch}>× Clear search</button>
-          </div>
-        )}
+          <div className="location-picker">
+            <button
+              className="location-pill"
+              onClick={() => setShowLocationSearch(!showLocationSearch)}
+              aria-expanded={showLocationSearch}
+            >
+              <Icon name="pin" size={18} />
+              <span className="location-text">{locationName || 'Set location'}</span>
+              <Icon name="chevronDown" size={16} />
+            </button>
 
-        {/* Location bar - only show in nearby mode */}
-        {searchMode === 'nearby' && (
-          <>
-            <div className="location-bar">
-              <div className="location-display" onClick={() => setShowLocationSearch(true)}>
-                <img
-                  className="location-icon"
-                  src="/location-icon.png"
-                  alt="Location"
+            {showLocationSearch && (
+              <div className="location-dropdown">
+                <input
+                  type="text"
+                  className="location-input"
+                  placeholder="City, neighborhood, or address"
+                  value={locationQuery}
+                  onChange={(e) => handleLocationInput(e.target.value)}
+                  autoFocus
                 />
-                <span className="location-text">
-                  {locationName || 'Set your location'}
-                </span>
-                <span className="location-change">Change</span>
-              </div>
-
-              {showLocationSearch && (
-                <div className="location-dropdown">
-                  <input
-                    type="text"
-                    className="location-input"
-                    placeholder="Enter city, neighborhood, or address..."
-                    value={locationQuery}
-                    onChange={(e) => handleLocationInput(e.target.value)}
-                    autoFocus
-                  />
-                  <button className="geo-btn" onClick={useMyLocation}>
-                    <img className="geo-icon" src="/location-icon.png" alt="" />
-                    <span>Use my location</span>
-                  </button>
-                  {locationSuggestions.length > 0 && (
-                    <ul className="location-suggestions">
-                      {locationSuggestions.map((s) => (
-                        <li key={s.placeId} onClick={() => selectLocation(s)}>
+                <button className="geo-btn" onClick={useMyLocation}>
+                  <Icon name="locate" size={18} />
+                  <span>Use my location</span>
+                </button>
+                {locationSuggestions.length > 0 && (
+                  <ul className="location-suggestions">
+                    {locationSuggestions.map((s) => (
+                      <li key={s.placeId}>
+                        <button onClick={() => selectLocation(s)}>
+                          <Icon name="pin" size={16} />
                           {s.description}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  <button
-                    className="close-btn"
-                    onClick={() => setShowLocationSearch(false)}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {location && (
-              <div className="controls">
-                <div className="control-group">
-                  <label>Within:</label>
-                  <select value={radiusMiles} onChange={(e) => handleRadiusChange(Number(e.target.value))}>
-                    {RADIUS_OPTIONS.map((r) => (
-                      <option key={r} value={r}>
-                        {r} {r === 1 ? 'mile' : 'miles'}
-                      </option>
+                        </button>
+                      </li>
                     ))}
-                  </select>
-                </div>
-                <div className="control-group">
-                  <label>Sort:</label>
-                  <select value={sort} onChange={(e) => handleSortChange(e.target.value)}>
-                    <option value="default">Best Match</option>
-                    <option value="distance">Nearest</option>
-                    <option value="rating">Top Rated</option>
-                    <option value="popularity">Most Popular</option>
-                  </select>
-                </div>
+                  </ul>
+                )}
+                <button
+                  className="text-btn"
+                  onClick={() => setShowLocationSearch(false)}
+                >
+                  Cancel
+                </button>
               </div>
             )}
-          </>
-        )}
-
-        {loading && (
-          <div className="loading">
-            <div className="spinner"></div>
-            <p>Finding matcha spots...</p>
           </div>
-        )}
+        </div>
+      </Nav>
 
-        {!loading && searchMode === 'nearby' && !location && (
-          <div className="empty-state">
-            <p className="empty-icon">🗺️</p>
-            <p>Set your location to discover matcha cafés nearby</p>
-          </div>
-        )}
-
-        {!loading && places.length === 0 && (searchMode === 'search' || location) && (
-          <div className="empty-state">
-            <p className="empty-icon">😢</p>
-            <p>
-              {searchMode === 'search' 
-                ? 'No cafés found for that search' 
-                : `No matcha spots found within ${radiusMiles} ${radiusMiles === 1 ? 'mile' : 'miles'}`
-              }
-            </p>
-            <p className="empty-hint">
-              {searchMode === 'search' 
-                ? 'Try a different search term' 
-                : 'Try expanding your search radius'
-              }
-            </p>
-          </div>
-        )}
-
-        {!loading && places.length > 0 && (
-          <>
-            <p className="results-count">{places.length} spots found</p>
-            <div className="places-grid">
-              {places.map((place) => (
-                <PlaceCard key={place.placeId} place={place} />
-              ))}
+      <main className={`main-content discover${showFilters ? ' has-filters' : ''}`}>
+        {showFilters && (
+          <aside className="filters">
+            <div className="filter-group">
+              <p className="filter-label">Within</p>
+              <div className="filter-options">
+                {RADIUS_OPTIONS.map((r) => (
+                  <button
+                    key={r}
+                    className={`filter-option${r === radiusMiles ? ' active' : ''}`}
+                    onClick={() => handleRadiusChange(r)}
+                  >
+                    <span>{r} {r === 1 ? 'mile' : 'miles'}</span>
+                  </button>
+                ))}
+              </div>
             </div>
-          </>
+            <div className="filter-group">
+              <p className="filter-label">Sort by</p>
+              <div className="filter-options">
+                {SORT_OPTIONS.map((o) => (
+                  <button
+                    key={o.value}
+                    className={`filter-option${o.value === sort ? ' active' : ''}`}
+                    onClick={() => handleSortChange(o.value)}
+                  >
+                    <span>{o.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </aside>
         )}
+
+        <section className="results">
+          {searchMode === 'search' && (
+            <div className="search-banner">
+              <p>Results for “<strong>{cafeQuery}</strong>”</p>
+              <button className="text-btn" onClick={clearSearch}>
+                <Icon name="close" size={16} /> Clear search
+              </button>
+            </div>
+          )}
+
+          {loading && (
+            <div className="loading">
+              <div className="spinner"></div>
+              <p>Finding matcha spots...</p>
+            </div>
+          )}
+
+          {!loading && searchMode === 'nearby' && !location && (
+            <div className="empty-state">
+              <span className="empty-icon"><Icon name="map" size={28} /></span>
+              <h2>Where are you sipping?</h2>
+              <p>Set your location to discover matcha cafés nearby.</p>
+              <button className="cta-btn" onClick={() => setShowLocationSearch(true)}>
+                Set location
+              </button>
+            </div>
+          )}
+
+          {!loading && loadError && (
+            <div className="empty-state">
+              <span className="empty-icon"><Icon name="cup" size={28} /></span>
+              <h2>{loadError}</h2>
+              <p>Try again in a little while.</p>
+            </div>
+          )}
+
+          {!loading && !loadError && places.length === 0 && (searchMode === 'search' || location) && (
+            <div className="empty-state">
+              <span className="empty-icon"><Icon name="cup" size={28} /></span>
+              <h2>
+                {searchMode === 'search'
+                  ? 'No cafés found for that search'
+                  : `No matcha spots within ${radiusMiles} ${radiusMiles === 1 ? 'mile' : 'miles'}`
+                }
+              </h2>
+              <p>
+                {searchMode === 'search'
+                  ? 'Try a different search term.'
+                  : 'Try expanding your search radius.'
+                }
+              </p>
+            </div>
+          )}
+
+          {!loading && places.length > 0 && (
+            <>
+              <p className="results-count">
+                {places.length} {places.length === 1 ? 'spot' : 'spots'} {searchMode === 'nearby' ? 'nearby' : 'found'}
+              </p>
+              <div className="places-grid">
+                {places.map((place) => (
+                  <PlaceCard key={place.placeId} place={place} />
+                ))}
+              </div>
+            </>
+          )}
+        </section>
       </main>
     </div>
   );
