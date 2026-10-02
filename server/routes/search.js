@@ -5,6 +5,8 @@ const { sortPlaces } = require('../utils/geo');
 
 const router = express.Router();
 
+const UNAVAILABLE_MESSAGE = "Couldn't load cafés right now";
+
 // Cache TTL in milliseconds (1 hour - photo refs can expire)
 const SEARCH_CACHE_TTL = 60 * 60 * 1000;
 
@@ -96,7 +98,14 @@ router.get('/nearby', async (req, res) => {
       await prisma.placeSearchCache.delete({ where: { queryKey } }).catch(() => {});
     }
 
-    const results = await google.nearbySearch(centerLat, centerLng, radiusMeters);
+    let results;
+    try {
+      results = await google.nearbySearch(centerLat, centerLng, radiusMeters);
+    } catch (err) {
+      // Don't cache a refusal as "no cafés here"
+      console.error(err.message);
+      return res.status(503).json({ error: UNAVAILABLE_MESSAGE, places: [] });
+    }
 
     places = await Promise.all(
       results.map(async (r) => {
@@ -175,7 +184,13 @@ router.get('/cafes', async (req, res) => {
     return res.status(400).json({ error: 'Search query required' });
   }
 
-  const results = await google.textSearch(q);
+  let results;
+  try {
+    results = await google.textSearch(q);
+  } catch (err) {
+    console.error(err.message);
+    return res.status(503).json({ error: UNAVAILABLE_MESSAGE, places: [] });
+  }
 
   // Cache results
   let places = await Promise.all(

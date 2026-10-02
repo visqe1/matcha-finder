@@ -4,9 +4,47 @@ const google = require('../google');
 
 const router = express.Router();
 
+// Google photo references expire, so full details (photos, hours, reviews) are
+// refetched once they're older than this. Searches upsert the same row without
+// touching rawJson, so updatedAt can't be used; the fetch time lives in rawJson.
+const DETAILS_TTL = 60 * 60 * 1000;
+
+// "You might also like" only stores place IDs (which Google allows keeping), so
+// the list can live much longer than other cached Google data.
+const RECS_CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
+const RECS_RADIUS_METERS = 3000;
+
+function withFetchedAt(details) {
+  return { ...details, _fetchedAt: Date.now() };
+}
+
+function detailsAreFresh(raw) {
+  return Boolean(raw?._fetchedAt) && Date.now() - raw._fetchedAt < DETAILS_TTL;
+}
+
 // Helper to get photo URL from a place, checking all possible sources
 function getPhotoRef(place) {
   return place.photoRef || place.rawJson?.photos?.[0]?.photo_reference;
+}
+
+// Short "where is it" label for a place, e.g. "Allston, Boston". Neighborhoods
+// come from address components (only present after a details fetch); otherwise
+// it's just the town from the address text.
+function getArea(place) {
+  const components = place.rawJson?.address_components || [];
+  const find = (type) => components.find((c) => c.types?.includes(type))?.long_name;
+  const city = find('locality') || find('sublocality_level_1') || townFromAddress(place.address);
+  const neighborhood = find('neighborhood');
+  return neighborhood && neighborhood !== city ? `${neighborhood}, ${city}` : city;
+}
+
+// "10 Milk St, Boston, MA 02108, USA" and "54 Bond St, New York" -> the town
+function townFromAddress(address) {
+  if (!address) return null;
+  const parts = address.split(',').map((p) => p.trim()).filter(Boolean);
+  if (/^(USA|United States)$/.test(parts[parts.length - 1])) parts.pop();
+  if (/^[A-Z]{2}(\s+\d{5}(-\d{4})?)?$/.test(parts[parts.length - 1])) parts.pop();
+  return parts.length > 1 ? parts[parts.length - 1] : address;
 }
 
 async function fetchAndCachePlaceDetails(placeId) {
@@ -31,7 +69,7 @@ async function fetchAndCachePlaceDetails(placeId) {
       phone: details.formatted_phone_number,
       website: details.website,
       openingHoursJson: details.opening_hours || null,
-      rawJson: details,
+      rawJson: withFetchedAt(details),
     },
     create: {
       placeId,
@@ -47,7 +85,7 @@ async function fetchAndCachePlaceDetails(placeId) {
       phone: details.formatted_phone_number,
       website: details.website,
       openingHoursJson: details.opening_hours || null,
-      rawJson: details,
+      rawJson: withFetchedAt(details),
     },
   });
 
@@ -69,7 +107,7 @@ async function ensurePlaceHasPhotos(place) {
       where: { placeId: place.placeId },
       data: {
         ...(newPhotoRef ? { photoRef: newPhotoRef } : {}),
-        rawJson: details,
+        rawJson: withFetchedAt(details),
         phone: details.formatted_phone_number,
         website: details.website,
         openingHoursJson: details.opening_hours || null,
@@ -147,7 +185,13 @@ router.get('/autocomplete', async (req, res) => {
 router.get('/details/:placeId', async (req, res) => {
   const { placeId } = req.params;
   
-  const place = await fetchAndCachePlaceDetails(placeId);
+  let place;
+  try {
+    place = await fetchAndCachePlaceDetails(placeId);
+  } catch (err) {
+    console.error(err.message);
+    return res.status(503).json({ error: "Couldn't load this place right now" });
+  }
   if (!place) {
     return res.status(404).json({ error: 'Place not found' });
   }
@@ -167,12 +211,21 @@ router.get('/:placeId', async (req, res) => {
   const hasDetailedFields = raw && (raw.formatted_phone_number || raw.editorial_summary);
   
   const hasFullData = hasPhotos && (hasReviews || hasDetailedFields);
-  
-  const needsFullDetails = forceRefresh || !place || !hasFullData;
+  const isFresh = detailsAreFresh(raw);
+
+  const needsFullDetails = forceRefresh || !place || !hasFullData || !isFresh;
 
   if (needsFullDetails) {
-    console.log(`Fetching full details for ${placeId} (forceRefresh=${forceRefresh}, hasFullData=${hasFullData}, hasPhotos=${hasPhotos}, hasReviews=${hasReviews})`);
-    place = await fetchAndCachePlaceDetails(placeId);
+    console.log(`Fetching full details for ${placeId} (forceRefresh=${forceRefresh}, hasFullData=${hasFullData}, isFresh=${isFresh}, hasPhotos=${hasPhotos}, hasReviews=${hasReviews})`);
+    try {
+      place = await fetchAndCachePlaceDetails(placeId);
+    } catch (err) {
+      // Google refused (quota, billing...). Older saved details beat an error page.
+      console.error(err.message);
+      if (!place) {
+        return res.status(503).json({ error: "Couldn't load this café right now" });
+      }
+    }
   }
 
   if (!place) {
@@ -191,58 +244,94 @@ router.get('/:placeId/recommendations', async (req, res) => {
   let place = await prisma.placeCache.findUnique({ where: { placeId } });
   
   if (!place) {
-    place = await fetchAndCachePlaceDetails(placeId);
+    try {
+      place = await fetchAndCachePlaceDetails(placeId);
+    } catch (err) {
+      console.error(err.message);
+      return res.status(503).json({ error: 'Suggestions are unavailable right now', recommendations: [] });
+    }
   }
 
   if (!place || !place.lat || !place.lng) {
     return res.status(404).json({ error: 'Place not found or missing location' });
   }
 
-  const results = await google.nearbySearch(place.lat, place.lng, 3000);
+  const cacheKey = `recs:${placeId}`;
+  const cachedRecs = await prisma.placeSearchCache.findUnique({ where: { queryKey: cacheKey } });
+  const cacheAge = cachedRecs ? Date.now() - new Date(cachedRecs.createdAt).getTime() : Infinity;
 
-  // Filter out the current place and cache results
-  let recommendations = await Promise.all(
-    results
-      .filter((r) => r.place_id !== placeId)
-      .slice(0, parseInt(limit))
-      .map(async (r) => {
-        const existing = await prisma.placeCache.findUnique({ 
-          where: { placeId: r.place_id } 
-        });
-        const hasDetailedData = existing?.rawJson?.reviews?.length > 0;
-        const newPhotoRef = r.photos?.[0]?.photo_reference;
+  let recommendations;
+  if (cacheAge < RECS_CACHE_TTL) {
+    const ids = cachedRecs.placeIdsJson.slice(0, parseInt(limit));
+    const rows = await prisma.placeCache.findMany({ where: { placeId: { in: ids } } });
+    recommendations = ids.map((id) => rows.find((r) => r.placeId === id)).filter(Boolean);
+  } else {
+    let results;
+    try {
+      results = await google.nearbySearch(place.lat, place.lng, RECS_RADIUS_METERS);
+    } catch (err) {
+      console.error(err.message);
+      return res.status(503).json({ error: 'Suggestions are unavailable right now', recommendations: [] });
+    }
+
+    // Filter out the current place and cache results
+    recommendations = await Promise.all(
+      results
+        .filter((r) => r.place_id !== placeId)
+        .slice(0, parseInt(limit))
+        .map(async (r) => {
+          const existing = await prisma.placeCache.findUnique({ 
+            where: { placeId: r.place_id } 
+          });
+          const hasDetailedData = existing?.rawJson?.reviews?.length > 0;
+          const newPhotoRef = r.photos?.[0]?.photo_reference;
         
-        const cached = await prisma.placeCache.upsert({
-          where: { placeId: r.place_id },
-          update: {
-            name: r.name,
-            address: r.vicinity,
-            lat: r.geometry?.location?.lat,
-            lng: r.geometry?.location?.lng,
-            rating: r.rating,
-            userRatingsTotal: r.user_ratings_total,
-            priceLevel: r.price_level,
-            types: r.types || [],
-            ...(newPhotoRef ? { photoRef: newPhotoRef } : {}),
-            ...(hasDetailedData ? {} : { rawJson: r }),
-          },
-          create: {
-            placeId: r.place_id,
-            name: r.name,
-            address: r.vicinity,
-            lat: r.geometry?.location?.lat,
-            lng: r.geometry?.location?.lng,
-            rating: r.rating,
-            userRatingsTotal: r.user_ratings_total,
-            priceLevel: r.price_level,
-            types: r.types || [],
-            photoRef: newPhotoRef,
-            rawJson: r,
-          },
-        });
-        return cached;
-      })
-  );
+          const cached = await prisma.placeCache.upsert({
+            where: { placeId: r.place_id },
+            update: {
+              name: r.name,
+              address: r.vicinity,
+              lat: r.geometry?.location?.lat,
+              lng: r.geometry?.location?.lng,
+              rating: r.rating,
+              userRatingsTotal: r.user_ratings_total,
+              priceLevel: r.price_level,
+              types: r.types || [],
+              ...(newPhotoRef ? { photoRef: newPhotoRef } : {}),
+              ...(hasDetailedData ? {} : { rawJson: r }),
+            },
+            create: {
+              placeId: r.place_id,
+              name: r.name,
+              address: r.vicinity,
+              lat: r.geometry?.location?.lat,
+              lng: r.geometry?.location?.lng,
+              rating: r.rating,
+              userRatingsTotal: r.user_ratings_total,
+              priceLevel: r.price_level,
+              types: r.types || [],
+              photoRef: newPhotoRef,
+              rawJson: r,
+            },
+          });
+          return cached;
+        })
+    );
+
+    const placeIds = recommendations.map((p) => p.placeId);
+    await prisma.placeSearchCache.upsert({
+      where: { queryKey: cacheKey },
+      update: { placeIdsJson: placeIds, createdAt: new Date() },
+      create: {
+        queryKey: cacheKey,
+        centerLat: place.lat,
+        centerLng: place.lng,
+        radiusMeters: RECS_RADIUS_METERS,
+        keyword: 'matcha',
+        placeIdsJson: placeIds,
+      },
+    });
+  }
 
   // Ensure all recommendations have photos
   recommendations = await Promise.all(recommendations.map(ensurePlaceHasPhotos));
@@ -253,6 +342,7 @@ router.get('/:placeId/recommendations', async (req, res) => {
       placeId: p.placeId,
       name: p.name,
       address: p.address,
+      area: getArea(p),
       rating: p.rating,
       userRatingsTotal: p.userRatingsTotal,
       priceLevel: p.priceLevel,

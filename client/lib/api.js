@@ -1,5 +1,12 @@
 const API_URL = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:4000';
 
+// Photo URLs come back as paths on our server (e.g. /api/photo?ref=...),
+// which keeps the Google API key off the client. Point them at the server.
+export function photoSrc(url) {
+  if (!url) return url;
+  return url.startsWith('/') ? `${API_URL}${url}` : url;
+}
+
 export async function login(username, password) {
   const res = await fetch(`${API_URL}/api/users/login`, {
     method: 'POST',
@@ -72,25 +79,43 @@ export async function createList(userId, title) {
   return res.json();
 }
 
+export async function renameList(listId, userId, title) {
+  const res = await fetch(`${API_URL}/api/lists/rename`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ listId, userId, title }),
+  });
+  return res.json();
+}
+
 export async function getLists(userId) {
   const res = await fetch(`${API_URL}/api/lists?userId=${userId}`);
   return res.json();
 }
 
-export async function addToList(listId, placeId) {
+export async function addToList(listId, userId, placeId) {
   const res = await fetch(`${API_URL}/api/lists/add-item`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ listId, placeId }),
+    body: JSON.stringify({ listId, userId, placeId }),
   });
   return res.json();
 }
 
-export async function removeFromList(listId, placeId) {
+export async function removeFromList(listId, userId, placeId) {
   const res = await fetch(`${API_URL}/api/lists/remove-item`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ listId, placeId }),
+    body: JSON.stringify({ listId, userId, placeId }),
+  });
+  return res.json();
+}
+
+export async function deleteList(listId, userId) {
+  const res = await fetch(`${API_URL}/api/lists/delete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ listId, userId }),
   });
   return res.json();
 }
