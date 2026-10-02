@@ -13,7 +13,14 @@ const photosRoutes = require('./routes/photos');
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-app.use(cors());
+// Only these sites may call the API from a browser. Set CORS_ORIGIN in
+// production (comma-separated), e.g. https://matchatime.app
+const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+app.use(cors({ origin: allowedOrigins }));
 app.use(express.json());
 
 app.get('/health', (req, res) => {
