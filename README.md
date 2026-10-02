@@ -64,7 +64,10 @@ Client runs on http://localhost:3000
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/matcha_finder
 GOOGLE_MAPS_API_KEY=your_google_api_key_here
 PORT=4000
+CORS_ORIGIN=http://localhost:3000
 ```
+
+In production, set `CORS_ORIGIN` to your site's address (e.g. `https://matchatime.app`) so only your site can call the API from a browser.
 
 ### Client (`client/.env.local`)
 
