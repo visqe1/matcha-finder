@@ -228,6 +228,17 @@ select {
   background-position: right 1rem center;
 }
 
+/* iPhone Safari zooms into any text field under 16px when it's focused (and stays
+   zoomed, so the page pans sideways). 16px on small screens prevents that. */
+@media (max-width: 720px) {
+  input[type='text'],
+  input[type='password'],
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
 /* ---------- Empty, loading, toast ---------- */
 .empty-state {
   display: flex;
